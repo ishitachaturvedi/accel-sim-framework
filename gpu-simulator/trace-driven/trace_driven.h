@@ -1,31 +1,4 @@
-// Copyright (c) 2018-2021, Mahmoud Khairy, Vijay Kandiah, Timothy Rogers, Tor M. Aamodt, Nikos Hardavellas
-// Northwestern University, Purdue University, The University of British Columbia
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-// 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer;
-// 2. Redistributions in binary form must reproduce the above copyright notice,
-//    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution;
-// 3. Neither the names of Northwestern University, Purdue University,
-//    The University of British Columbia nor the names of their contributors
-//    may be used to endorse or promote products derived from this software
-//    without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
+// developed by Mahmoud Khairy, Purdue Univ
 
 #include <assert.h>
 #include <stdio.h>
@@ -138,7 +111,7 @@ public:
   bool trace_done();
   address_type get_start_trace_pc();
   virtual address_type get_pc();
-  void set_kernel(trace_kernel_info_t *kernel_info) {
+  trace_warp_inst_t *set_kernel(trace_kernel_info_t *kernel_info) {
     m_kernel_info = kernel_info;
   }
 
@@ -207,13 +180,35 @@ public:
                                                const warp_inst_t *pI);
   virtual void issue_warp(register_set &warp, const warp_inst_t *pI,
                           const active_mask_t &active_mask, unsigned warp_id,
-                          unsigned sch_id);
+                          unsigned sch_id, int sid);
+
+  virtual void issue_warp_push_in_replay(register_set &warp, const warp_inst_t *pI,
+                  const active_mask_t &active_mask, unsigned warp_id,
+                  unsigned sch_id, int replay_buffer_idx, int pc, int sid, int MEM_ON);
+
+  virtual void issue_warp_push_in_replay_mem(register_set &warp, const warp_inst_t *pI,
+                  const active_mask_t &active_mask, unsigned warp_id,
+                  unsigned sch_id, int replay_buffer_idx, int pc, int sid, int MEM_ON);
+
+  virtual void issue_warp_push_from_replay(register_set &warp, const warp_inst_t *pI,
+                  const active_mask_t &active_mask, unsigned warp_id,
+                  unsigned sch_id, int sid, int MEM_ON);
+
+  virtual void issue_warp_push_from_replay_mem(register_set &warp, const warp_inst_t *pI,
+                  const active_mask_t &active_mask, unsigned warp_id,
+                  unsigned sch_id, int sid, int MEM_ON);
+
+  virtual bool isSyncInst(const warp_inst_t *inst, int warp_num);
+
+  virtual bool isSyncInstCore(const warp_inst_t *inst, int warp_num);
+
+  virtual void func_exec_inst_updatePCOnly(warp_inst_t &inst, int warp_num);
+
+  virtual void func_exec_inst_ExecInstOnly(warp_inst_t &inst, int warp_num);
 
 private:
   void init_traces(unsigned start_warp, unsigned end_warp,
                    kernel_info_t &kernel);
 };
-
-types_of_operands get_oprnd_type(op_type op, special_ops sp_op);
 
 #endif
