@@ -50,7 +50,7 @@ public:
       const class kernel_trace_t *kernel_trace_info);
 
 private:
-  unsigned m_opcode;
+ unsigned m_opcode;
 };
 
 class trace_kernel_info_t : public kernel_info_t {

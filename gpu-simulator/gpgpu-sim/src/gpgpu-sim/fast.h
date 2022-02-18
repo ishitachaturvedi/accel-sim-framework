@@ -207,3 +207,4 @@ extern int replay_flush_count;
 extern int L1D_total_cache_reservation_fails;
 
 extern int present_ongoing_cycle;
+extern int opcode_tracer;

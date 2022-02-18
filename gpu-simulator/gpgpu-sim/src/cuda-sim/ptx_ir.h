@@ -949,7 +949,8 @@ class ptx_instruction : public warp_inst_t {
   std::string to_string() const;
   unsigned inst_size() const { return m_inst_size; }
   unsigned uid() const { return m_uid; }
-  int get_opcode() const { return m_opcode; }
+  int get_opcode() const { 
+    return m_opcode; }
   const char *get_opcode_cstr() const {
     if (m_opcode != -1) {
       return g_opcode_string[m_opcode];

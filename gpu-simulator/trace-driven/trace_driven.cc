@@ -26,6 +26,8 @@
 #include "option_parser.h"
 #include "trace_driven.h"
 
+#include "../gpgpu-sim/src/gpgpu-sim/fast.h"
+
 const trace_warp_inst_t *trace_shd_warp_t::get_next_trace_inst() {
   if (trace_pc < warp_traces.size()) {
     trace_warp_inst_t *new_inst =
@@ -172,6 +174,8 @@ bool trace_warp_inst_t::parse_from_trace_struct(
     for (unsigned i = 0; i < warp_size(); ++i)
       set_addr(i, trace.memadd_info->addrs[i]);
   }
+
+  opcode_tracer = opcode_tracer;
 
   // handle special cases and fill memory space
   switch (m_opcode) {
