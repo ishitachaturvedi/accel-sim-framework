@@ -40,7 +40,7 @@ ifeq ($(GNUC_CPP0X), 1)
 endif
 
 ifneq ($(DEBUG),1)
-	OPTFLAGS += -O3
+	OPTFLAGS += -O0 
 else
 	CXXFLAGS += 
 endif

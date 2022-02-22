@@ -209,7 +209,7 @@ cuda-sim: makedirs
 
 TFLAGS = -std=c++0x -I$(CUDA_INSTALL_PATH)/include
 ifneq ($(DEBUG),1)
-	TFLAGS += -O3
+	TFLAGS += -O0
 endif
 TFLAGS += -g3 -fPIC
 

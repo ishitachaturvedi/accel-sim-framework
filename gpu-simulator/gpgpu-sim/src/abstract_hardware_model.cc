@@ -1246,6 +1246,10 @@ bool core_t::ptx_thread_done(unsigned hw_thread_id) const {
           m_thread[hw_thread_id]->is_done());
 }
 
+bool core_t::ptx_thread_done_check(unsigned hw_thread_id) const {
+  std::cout << (m_thread[hw_thread_id] == NULL) << " "<< m_thread[hw_thread_id]->is_done();
+}
+
 void core_t::updateSIMTStack(unsigned warpId, warp_inst_t *inst) {
   simt_mask_t thread_done;
   addr_vector_t next_pc;

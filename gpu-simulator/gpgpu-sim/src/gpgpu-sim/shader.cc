@@ -929,6 +929,16 @@ void shader_core_ctx::decode() {
     address_type pc = m_inst_fetch_buffer.m_pc;
     const warp_inst_t *pI1 = get_next_inst(m_inst_fetch_buffer.m_warp_id, pc);
     m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_fill(0, pI1);
+    // if(m_inst_fetch_buffer.m_warp_id == 4)
+    // {
+    //   cout << "FILLING_INST_BUFF1 "<<pc<<"\n";
+    // }
+    // if(m_inst_fetch_buffer.m_warp_id == 4 && pc == 368)
+    // {
+    //   cout <<"ADDRESS "<<m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_inst_addr(0) <<"\n";
+    //   cout << "REACHED ERROR POINT 1 \n";
+    //   cout <<"WILL BREAK ONLY WHEN INSIDE\n";
+    // }
     m_warp[m_inst_fetch_buffer.m_warp_id]->inc_inst_in_pipeline();
     if (pI1) {
       m_stats->m_num_decoded_insn[m_sid]++;
@@ -941,6 +951,10 @@ void shader_core_ctx::decode() {
           get_next_inst(m_inst_fetch_buffer.m_warp_id, pc + pI1->isize);
       if (pI2) {
         m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_fill(1, pI2);
+        // if(m_inst_fetch_buffer.m_warp_id == 4)
+        // {
+        //   cout << "FILLING_INST_BUFF2 "<<(pc+ pI1->isize)<<"\n";
+        // }
         m_warp[m_inst_fetch_buffer.m_warp_id]->inc_inst_in_pipeline();
         m_stats->m_num_decoded_insn[m_sid]++;
         if (pI2->oprnd_type == INT_OP) {
@@ -1101,6 +1115,10 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   int reg_id = pipe_reg_set.get_free_id(m_config->sub_core_model, sch_id);
 
   assert(pipe_reg);
+  if(warp_id == 4)
+  {
+    cout <<"PC_FREED_HERE_IN "<<m_warp[warp_id]->freed_pc()<<"\n";
+  }
 
   m_warp[warp_id]->ibuffer_free();
   assert(next_inst->valid());
@@ -1152,6 +1170,10 @@ void shader_core_ctx::issue_warp_push_in_replay(register_set &pipe_reg_set,
                                  const warp_inst_t *next_inst,
                                  const active_mask_t &active_mask,
                                  unsigned warp_id, unsigned sch_id, int replay_buffer_idx, int pc_num, int sid, int MEM_ON) {
+  if(warp_id == 4)
+  {
+    cout <<"PC_FREED_HERE_OOO "<<m_warp[warp_id]->freed_pc()<<"\n";
+  }                                 
 
   m_warp[warp_id]->ibuffer_free();
   warp_inst_t *pipe_reg = const_cast<warp_inst_t*>(next_inst);
@@ -1177,6 +1199,10 @@ void shader_core_ctx::issue_warp_push_in_replay_mem(register_set &pipe_reg_set,
                                  const warp_inst_t *next_inst,
                                  const active_mask_t &active_mask,
                                  unsigned warp_id, unsigned sch_id, int replay_buffer_idx, int pc_num, int sid, int MEM_ON) {
+  if(warp_id == 4)
+  {
+    cout <<"PC_FREED_HERE_MEM "<<m_warp[warp_id]->freed_pc()<<"\n";
+  }
 
   m_warp[warp_id]->ibuffer_free();
   warp_inst_t *pipe_reg = const_cast<warp_inst_t*>(next_inst);
@@ -1962,6 +1988,12 @@ bool isSync(int inst_opcode)
   return false;
 }
 
+bool scheduler_unit::canPushInst(const warp_inst_t *pI)
+{
+  int op = pI->op;
+  return(op == BRANCH_OP || op == BARRIER_OP || op == MEMORY_BARRIER_OP || op == CALL_OPS || op == RET_OPS || op == EXIT_OPS );
+}
+
 void scheduler_unit::cycle(int m_cluster_id) {
 
   bool mem_data_stall_test = 0;
@@ -1980,6 +2012,8 @@ void scheduler_unit::cycle(int m_cluster_id) {
   std::vector<const warp_inst_t *> indep_instructions;
   std::vector<int> indep_warp_num;
   std::vector<int> indep_pc_num;
+
+  int pc_done = -1;
 
   SCHED_DPRINTF("scheduler_unit::cycle()\n");
   bool valid_inst =
@@ -2065,10 +2099,9 @@ void scheduler_unit::cycle(int m_cluster_id) {
       ibuffer_stall_issue_irr++;
     }
 
-    const warp_inst_t *pI;
+    //cout <<"INSIDE_SHADER_CYCLE "<<warp(warp_id).check_waiting()<<" "<<warp(warp_id).ibuffer_empty()<<"\n";
 
-    // if(warp(warp_id).check_waiting())
-    //   cout <<"WARP_WAITING_N "<<warp_id<<" "<<warp(warp_id).check_waiting()<<"\n"; 
+    const warp_inst_t *pI;
 
     while (!warp(warp_id).waiting() && !warp(warp_id).ibuffer_empty() &&
            (checked < max_issue) && (checked <= issued) &&
@@ -2105,22 +2138,25 @@ void scheduler_unit::cycle(int m_cluster_id) {
           m_shader->m_config->gpgpu_ctx->func_sim->ptx_get_insn_str(pc)
               .c_str());
 
+      pc_done = pc;
+
       // dont push if incoming inst is barrier and there are instructions in replay buffer -> 
       // This will ensure all inst in OOO buffer are completed before barrier instruction is executed
       // dont push inst if status of threads is changing in this instruction -> some threads are completing.
       // Finish all pending inst in OOO buffer before threads with different status are going to run 
       // This will take care of threads ending, branches and reconvergence
-      
-      // if (pI 
-      //     && !((pI->op == MEMORY_BARRIER_OP || pI->op == BARRIER_OP ) && !warp(warp_id).replay_buffer_empty() && m_shader->m_config->gpgpu_reply_buffer)
-      //     && !(m_shader->checkSIMTthreadStateChange(warp_id,pI) && !warp(warp_id).replay_buffer_empty() && m_shader->m_config->gpgpu_reply_buffer)
-      //     && !(m_shader->isSyncInst(pI,int(warp_id)) && !warp(warp_id).replay_buffer_empty() && m_shader->m_config->gpgpu_reply_buffer)
-      //   ) {
+
+      // cout <<"STATUS "<<warp_id<<" PC "<<pI->pc<<" "
+      // << pI <<" "
+      // <<((pI->op == MEMORY_BARRIER_OP || pI->op == BARRIER_OP ) && !warp(warp_id).replay_buffer_empty() && m_shader->m_config->gpgpu_reply_buffer) <<" "
+      // << (m_shader->m_config->gpgpu_reply_buffer_seperate_mem_comp && m_shader->isSyncInst(pI,int(warp_id)) && !warp(warp_id).replay_buffer_empty_mem())<<" "
+      // <<"\n"<<flush;
 
       if (pI 
           && (!((pI->op == MEMORY_BARRIER_OP || pI->op == BARRIER_OP ) && !warp(warp_id).replay_buffer_empty() && m_shader->m_config->gpgpu_reply_buffer))
           && (!(m_shader->isSyncInst(pI,int(warp_id)) && !warp(warp_id).replay_buffer_empty() && m_shader->m_config->gpgpu_reply_buffer))
           && (!(m_shader->m_config->gpgpu_reply_buffer_seperate_mem_comp && m_shader->isSyncInst(pI,int(warp_id)) && !warp(warp_id).replay_buffer_empty_mem()))
+          && (!(canPushInst(pI) && !warp(warp_id).replay_buffer_empty() && m_shader->m_config->gpgpu_reply_buffer))
           // Addition to prevent memory reordering ->
           // No stores if load in OOO buffer
           //&& (!(pI->is_load() && (warp(warp_id).replay_buffer_next_inst()->is_store() || warp(warp_id).replay_buffer_next_inst()->is_load()) && warp(warp_id).replay_buffer_next_valid() && m_shader->m_config->gpgpu_reply_buffer))
@@ -2446,7 +2482,7 @@ void scheduler_unit::cycle(int m_cluster_id) {
             }
           }
         }
-      } else if (valid) {
+      } else if (valid && !pI) {
 
         // this case can happen after a return instruction in diverged warp
         SCHED_DPRINTF(
@@ -2473,8 +2509,6 @@ void scheduler_unit::cycle(int m_cluster_id) {
         warp_issue[warp_id]++;
         if(m_shader->m_config->gpgpu_write_sched_order)
           write_warps << warp_id <<" ";
-
-        //cout <<"ISSUING_NORMAL_INSTRUCTION_HERE\n";
 
         issued_inst_count++;
 
@@ -2678,9 +2712,6 @@ bool scheduler_unit::replay_buffer_cycle_mem(int m_cluster_id, int MEM_ON, int m
                                                  // units (as in Maxwell and
                                                  // Pascal)
     const warp_inst_t *pI;
-
-    // if(warp(warp_id).check_waiting())
-    //   cout <<"WARP_WAITING_M "<<warp_id<<" "<<warp(warp_id).check_waiting()<<"\n"; 
 
     while (
             !warp(warp_id).waiting() && 
@@ -3075,6 +3106,8 @@ bool scheduler_unit::replay_buffer_cycle(int m_cluster_id, int MEM_ON, int mem_d
   bool consec_inst_indep = false;
   const warp_inst_t *last_exec_inst;
 
+  int pushed_pc;
+
   SCHED_DPRINTF("scheduler_unit::cycle()\n");
   bool valid_inst =
       false;  // there was one warp with a valid instruction to issue (didn't
@@ -3088,6 +3121,7 @@ bool scheduler_unit::replay_buffer_cycle(int m_cluster_id, int MEM_ON, int mem_d
   print_on = m_shader->m_config->gpgpu_print_stall_data;
 
   int counter = 0;
+
 
   for (std::vector<shd_warp_t *>::const_iterator iter =
            m_next_cycle_prioritized_warps.begin();
@@ -3148,6 +3182,7 @@ bool scheduler_unit::replay_buffer_cycle(int m_cluster_id, int MEM_ON, int mem_d
       unsigned pc, rpc;
       // m_shader->get_pdom_stack_top_info(warp_id, pI, &pc, &rpc);
       pc = warp(warp_id).replay_buffer_next_pc();
+      pushed_pc = pc;
 
       SCHED_DPRINTF(
           "Warp (warp_id %u, dynamic_warp_id %u) has valid instruction (%s)\n",
@@ -3438,8 +3473,6 @@ bool scheduler_unit::replay_buffer_cycle(int m_cluster_id, int MEM_ON, int mem_d
     }
     if (issued) {
       warp_issue[warp_id]++;
-
-      //cout <<"ISSUING_OOO_INSTRUCTION_HERE\n";
 
       issued_inst_count++;
 
@@ -3836,6 +3869,7 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
 
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
+  //cout <<"ADDING_INST_HERE "<<m_gpu->gpu_sim_insn<<" "<<inst.active_count()<<" "<<cycles_passed<<"\n";
   //tot_inst_exec += inst.active_count();
   
   inst.completed(m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle);
@@ -6180,6 +6214,10 @@ void shader_core_ctx::get_icnt_power_stats(long &n_simt_to_mem,
 
 bool shd_warp_t::functional_done() const {
   return get_n_completed() == m_warp_size;
+}
+
+bool shd_warp_t::functional_done_check() const {
+  std::cout << " comp "<<get_n_completed() <<" warp_s "<<m_warp_size<<" ";
 }
 
 bool shd_warp_t::hardware_done() const {

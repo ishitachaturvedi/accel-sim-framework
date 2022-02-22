@@ -1772,7 +1772,7 @@ bool ptx_thread_info::isSyncInst(const warp_inst_t *inst, unsigned lane_id)
   return (inst_opcode == BAR_OP|| inst_opcode == CALL_OP || inst_opcode == CALLP_OP || inst_opcode == EXIT_OP	
         || inst_opcode == MEMBAR_OP || inst_opcode == RET_OP || inst_opcode == RETP_OP || inst_opcode == TRAP_OP ||inst_opcode == VOTE_OP	
         || inst_opcode == ACTIVEMASK_OP || inst_opcode == BREAK_OP || inst_opcode == BREAKADDR_OP	
-        || inst_opcode == ATOM_OP	
+        || inst_opcode == ATOM_OP	 || inst_opcode == EXIT_OPS
         );	
 }
 
@@ -1783,7 +1783,6 @@ void ptx_thread_info::ptx_exec_inst(warp_inst_t &inst, unsigned lane_id) {
   addr_t pc = inst.pc; // change Ishita
   assert(pc ==
          inst.pc);  // make sure timing model and functional model are in sync
-  std::cout <<"PC IN USE "<<pc<<"\n"<<std::flush;
   const ptx_instruction *pI = m_func_info->get_instruction(pc);
 
   set_npc(pc + pI->inst_size());

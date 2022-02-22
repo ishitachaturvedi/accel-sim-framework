@@ -34,7 +34,7 @@ const trace_warp_inst_t *trace_shd_warp_t::get_next_trace_inst() {
         new trace_warp_inst_t(get_shader()->get_config());
     new_inst->parse_from_trace_struct(
         warp_traces[trace_pc], m_kernel_info->OpcodeMap,
-        m_kernel_info->m_tconfig, m_kernel_info->m_kernel_trace_info);
+        m_kernel_info->m_tconfig, m_kernel_info->m_kernel_trace_info, new_inst);
     trace_pc++;
     return new_inst;
   } else
@@ -104,7 +104,7 @@ bool trace_warp_inst_t::parse_from_trace_struct(
     const inst_trace_t &trace,
     const std::unordered_map<std::string, OpcodeChar> *OpcodeMap,
     const class trace_config *tconfig,
-    const class kernel_trace_t *kernel_trace_info) {
+    const class kernel_trace_t *kernel_trace_info,const trace_warp_inst_t *new_inst) {
   // fill the inst_t and warp_inst_t params
 
   // fill active mask
@@ -175,7 +175,7 @@ bool trace_warp_inst_t::parse_from_trace_struct(
       set_addr(i, trace.memadd_info->addrs[i]);
   }
 
-  opcode_tracer = opcode_tracer;
+  opcode_tracer = m_opcode;
 
   // handle special cases and fill memory space
   switch (m_opcode) {
@@ -511,9 +511,14 @@ void trace_shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst,
   if (inst.op == EXIT_OPS) {
     m_warp[inst.warp_id()]->set_completed(t);
   }
+
 }
 
 void trace_shader_core_ctx::func_exec_inst(warp_inst_t &inst) {
+  // if(inst.warp_id() == 4)
+  // {
+  //   std::cout <<"CHECKING FOR THREAD EXIT "<<inst.pc<<" active "<<inst.get_active_mask()<<"\n"<<std::flush;
+  // }
   // here, we generate memory acessess and set the status if thread (done?)
   if (inst.is_load() || inst.is_store()) {
     inst.generate_mem_accesses();
@@ -533,6 +538,10 @@ void trace_shader_core_ctx::func_exec_inst(warp_inst_t &inst) {
     m_trace_warp->ibuffer_flush();
     m_barriers.warp_exit(inst.warp_id());
   }
+  // if(inst.warp_id()== 4)
+  // {
+  //   std::cout <<"CHECKING_TRACE "<<inst.pc<<" "<<m_trace_warp->trace_done()<<" done "<<m_trace_warp->functional_done()<<" "<<m_trace_warp->functional_done_check()<<"\n";
+  // }
 }
 
 void trace_shader_core_ctx::issue_warp(register_set &warp,
@@ -556,7 +565,6 @@ void trace_shader_core_ctx::issue_warp_push_in_replay(register_set &warp, const 
 
   // delete warp_inst_t class here, it is not required anymore by gpgpu-sim
   // after issue
-  delete pI;
 }
 
 void trace_shader_core_ctx::issue_warp_push_in_replay_mem(register_set &warp, const warp_inst_t *pI,
@@ -568,7 +576,6 @@ void trace_shader_core_ctx::issue_warp_push_in_replay_mem(register_set &warp, co
 
   // delete warp_inst_t class here, it is not required anymore by gpgpu-sim
   // after issue
-  delete pI;
 }
 
 void trace_shader_core_ctx::issue_warp_push_from_replay(register_set &warp, const warp_inst_t *pI,
@@ -610,11 +617,19 @@ bool trace_shader_core_ctx::isSyncInstCore(const warp_inst_t *inst, int warp_num
 
 void trace_shader_core_ctx::func_exec_inst_updatePCOnly(warp_inst_t &inst, int warp_num) {
   //execute_warp_inst_t_updatePCOnly(inst, warp_num);
-  execute_warp_inst_t(inst, warp_num);
+  //execute_warp_inst_t(inst, warp_num);
+  for (unsigned t = 0; t < m_warp_size; t++) {
+    if (inst.active(t)) {
+      unsigned warpId = inst.warp_id();
+      unsigned tid = m_warp_size * warpId + t;
+
+      // virtual function
+      checkExecutionStatusAndUpdate(inst, t, tid);
+    }
+  }
 }
 
 void trace_shader_core_ctx::func_exec_inst_ExecInstOnly(warp_inst_t &inst, int warp_num) {
-  //execute_warp_inst_t_ExecInstOnly(inst, warp_num);
   if (inst.is_load() || inst.is_store()) {
     inst.generate_mem_accesses();
     if (m_config->gpgpu_perfect_mem_data)
@@ -623,6 +638,12 @@ void trace_shader_core_ctx::func_exec_inst_ExecInstOnly(warp_inst_t &inst, int w
         inst.space.set_type(const_space); 
     }
     m_scoreboard->appendMemStatus(inst,inst.space.get_type());
+  }
+  trace_shd_warp_t *m_trace_warp =
+      static_cast<trace_shd_warp_t *>(m_warp[inst.warp_id()]);
+  if (m_trace_warp->trace_done() && m_trace_warp->functional_done()) {
+    m_trace_warp->ibuffer_flush();
+    m_barriers.warp_exit(inst.warp_id());
   }
 }
 

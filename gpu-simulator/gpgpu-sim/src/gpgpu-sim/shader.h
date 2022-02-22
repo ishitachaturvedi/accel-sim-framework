@@ -43,6 +43,7 @@
 #include <set>
 #include <utility>
 #include <vector>
+#include <memory>
 
 //#include "../cuda-sim/ptx.tab.h"
 
@@ -152,6 +153,7 @@ class shd_warp_t {
   }
 
   bool functional_done() const;
+  bool functional_done_check() const;
   bool waiting();  // not const due to membar
   bool check_waiting();	
   bool waiting_barrier();	
@@ -217,7 +219,13 @@ class shd_warp_t {
     m_ibuffer[m_next].m_inst = NULL;
     m_ibuffer[m_next].m_valid = false;
   }
+  int freed_pc()
+  {
+    return m_ibuffer[m_next].m_inst->pc;
+  }
   void ibuffer_step() { m_next = (m_next + 1) % IBUFFER_SIZE; }
+
+  bool* ibuffer_inst_addr(int slot) { return &m_ibuffer[slot].m_valid;}
 
 
   // additional ibuffer functions 		
@@ -234,6 +242,7 @@ class shd_warp_t {
   }	
   void ibuffer_contents()	
   {	
+    std::cout <<"PRINTING_IBUFFER\n";
     for (unsigned i = 0; i < IBUFFER_SIZE; i++)	
     {	
       if (m_ibuffer[i].m_valid) 	
@@ -254,6 +263,32 @@ class shd_warp_t {
     else	
       replay_m_fill_next = 0;	
   }	
+
+  void replay_buffer_fill_check(unsigned slot) {	
+    //replay_m_next = 0;	
+    if(replay_m_fill_next + 1 < REPLAY_BUFFER_SIZE)	
+      replay_m_fill_next = replay_m_fill_next + 1;	
+    else	
+      replay_m_fill_next = 0;	
+    std::cout <<"FILLED_VALUES_IBUFFER_COMP "<<replay_buffer[slot].m_pc<<" "<<&replay_buffer[slot].m_pc<<" "<<replay_buffer[slot].m_inst->outcount<<" "<<&replay_buffer[slot].m_inst->outcount<<" "<<&replay_buffer[slot].m_inst->out[0]<<" "<<replay_buffer[slot].m_inst->out[0]<<" "<<&replay_buffer[slot].m_inst<<"\n";
+    //int addr = &(replay_buffer[slot].m_pc);
+    int *addr = &replay_buffer[slot].m_pc;
+    std::cout <<"ADDR m_PC "<<replay_buffer[slot].m_pc<<" "<<&replay_buffer[slot].m_pc<<"\n";
+    std::cout <<"I_AM_PRINTING_VALUE\n";
+
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++) {	
+      if (replay_buffer[i].m_valid)	
+      {
+        std::cout <<"IBUFFER_POST_FILLLING_VALUE_CHECK "<<replay_buffer[slot].m_pc<<" "<<&replay_buffer[slot].m_pc<<" "<<replay_buffer[slot].m_inst->outcount<<" "<<&replay_buffer[slot].m_inst->outcount<<" "<<&replay_buffer[slot].m_inst->out[0]<<" "<<replay_buffer[slot].m_inst->out[0]<<" "<<&replay_buffer[slot].m_inst<<"\n";
+      }	
+    }
+  }	
+
+  const unsigned int* get_pc_addr(unsigned slot)
+  {
+    return &replay_buffer[slot].m_inst->out[0];
+  }
+
   int replay_buffer_empty_idx() {	
     // for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
     //   if (!replay_buffer[i].m_valid)	
@@ -302,18 +337,30 @@ class shd_warp_t {
     std::vector<const warp_inst_t *> replayInst;	
     for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++) {	
       if (replay_buffer[i].m_valid)	
-      {	
+      {
         replayInst.push_back(replay_buffer[i].m_inst);	
       }	
     }	
     return replayInst;	
   }	
+
+  std::vector<const warp_inst_t *> get_Replay_buffer_Inst_check()  {	
+    std::vector<const warp_inst_t *> replayInst;	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++) {	
+      if (replay_buffer[i].m_valid)	
+      {
+        std::cout <<"IBUFFER_CONTENT_REPLAY_CHECK_VALID "<<replay_buffer[i].m_pc<<" "<<&replay_buffer[i].m_pc<<" "<<replay_buffer[i].m_inst->outcount<<" "<<&replay_buffer[i].m_inst->outcount<<" "<<&replay_buffer[i].m_inst->out[0]<<" "<<replay_buffer[i].m_inst->out[0]<<" "<<&replay_buffer[i].m_inst<<"\n";
+      }	
+    }	
+    return replayInst;	
+  }	
+
   void replay_buffer_contents()	
   {	
     for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
     {	
       if (replay_buffer[i].m_valid) 	
-        std::cout <<"IBUFFER_CONTENT_VALID "<<i<<" "<<replay_buffer[i].m_valid<<" "<<replay_buffer[i].m_inst->pc<<" "<<replay_m_next<<"\n";	
+        std::cout <<"REPLAY_BUFFER_CONTENT_VALID "<<replay_buffer[i].m_pc<<" "<<&replay_buffer[i].m_pc<<" "<<replay_buffer[i].m_inst->outcount<<" "<<&replay_buffer[i].m_inst->outcount<<" "<<&replay_buffer[i].m_inst->out[0]<<" "<<replay_buffer[i].m_inst->out[0]<<" "<<&replay_buffer[i].m_inst<<"\n";
       else	
         std::cout <<"IBUFFER_CONTENT_INVALID "<<i<<" "<<replay_buffer[i].m_valid<<" "<<replay_m_next<<"\n";	
     }	
@@ -331,6 +378,7 @@ class shd_warp_t {
     else	
       replay_m_fill_next_mem = 0;	
   }	
+
   int replay_buffer_empty_idx_mem() {	
     // for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
     //   if (!replay_buffer[i].m_valid)	
@@ -390,7 +438,7 @@ class shd_warp_t {
     for (unsigned i = 0; i < REPLAY_BUFFER_SIZE_MEM; i++)	
     {	
       if (replay_buffer_mem[i].m_valid) 	
-        std::cout <<"IBUFFER_CONTENT_VALID "<<i<<" "<<replay_buffer_mem[i].m_valid<<" "<<replay_buffer_mem[i].m_inst->pc<<" "<<replay_m_next_mem<<"\n";	
+        std::cout <<"IBUFFER_CONTENT_VALID "<<i<<" "<<replay_buffer_mem[i].m_valid<<" "<<replay_buffer_mem[i].m_pc<<" "<<replay_m_next_mem<<"\n";	
       else	
         std::cout <<"IBUFFER_CONTENT_INVALID "<<i<<" "<<replay_buffer_mem[i].m_valid<<" "<<replay_m_next_mem<<"\n";	
     }	
@@ -468,6 +516,7 @@ class shd_warp_t {
     bool m_valid;	
     int m_pc;	
   };	
+
   struct replay_buffer_entry_mem {	
     replay_buffer_entry_mem() {	
       m_valid = false;	
@@ -584,6 +633,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   // modified by changing the contents of the m_next_cycle_prioritized_warps
   // list.
   void cycle(int m_cluster_id);	
+  bool canPushInst(const warp_inst_t *pI);
   void verify_stall(int warp_id, exec_unit_type_t type);	
   bool replay_buffer_cycle(int m_cluster_id, int MEM_ON, int mem_data_stall_test, int comp_data_stall_test, int ibuffer_stall_test, int comp_str_stall_test ,	
   int mem_str_stall_test, int other_stall_test1, int other_stall_test2, int other_stall_test3);	

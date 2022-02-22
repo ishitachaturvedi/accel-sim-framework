@@ -1321,6 +1321,7 @@ class core_t {
   bool isSyncInstExec(const warp_inst_t *inst, int warp_num);
 
   bool ptx_thread_done(unsigned hw_thread_id) const;
+  bool ptx_thread_done_check(unsigned hw_thread_id) const;
   virtual void updateSIMTStack(unsigned warpId, warp_inst_t *inst);
   void initilizeSIMTStack(unsigned warp_count, unsigned warps_size);
   void deleteSIMTStack();

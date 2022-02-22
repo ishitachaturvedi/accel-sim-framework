@@ -30,7 +30,7 @@
 
 export ACCELSIM_SETUP_ENVIRONMENT_WAS_RUN=
 export ACCELSIM_ROOT="$( cd "$( dirname "$BASH_SOURCE" )" && pwd )"
-export CUDA_VERSION=`nvcc --version | grep release | sed -re 's/.*release ([0-9]+\.[0-9]+).*/\1/'`;
+export ACCELSIM_PARENT="$( cd ../ && pwd)"
 if [ $# = '1' ] ;
 then
     export ACCELSIM_CONFIG=$1
@@ -38,13 +38,13 @@ else
     export ACCELSIM_CONFIG=release
 fi
 
-if [ ! -d "$ACCELSIM_ROOT/gpgpu-sim" ] ; then
-	git clone https://github.com/accel-sim/gpgpu-sim_distribution.git  $ACCELSIM_ROOT/gpgpu-sim
-	git -C $ACCELSIM_ROOT/gpgpu-sim/ checkout release-accelwattch
-else
-    git -C $ACCELSIM_ROOT/gpgpu-sim/ checkout release-accelwattch
-    git -C $ACCELSIM_ROOT/gpgpu-sim/ pull
-fi
+# if [ ! -d "$ACCELSIM_ROOT/gpgpu-sim" ] ; then
+# 	git clone https://github.com/accel-sim/gpgpu-sim_distribution.git  $ACCELSIM_ROOT/gpgpu-sim
+# 	git -C $ACCELSIM_ROOT/gpgpu-sim/ checkout release-accelwattch
+# else
+#    git -C $ACCELSIM_ROOT/gpgpu-sim/ checkout release-accelwattch
+#    git -C $ACCELSIM_ROOT/gpgpu-sim/ pull
+# fi
 
 source $ACCELSIM_ROOT/gpgpu-sim/setup_environment $ACCELSIM_CONFIG
 

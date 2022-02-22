@@ -30,6 +30,7 @@
 #include "../cuda-sim/ptx_sim.h"
 #include "shader.h"
 #include "shader_trace.h"
+#include <iostream>
 
 // Constructor
 Scoreboard::Scoreboard(unsigned sid, unsigned n_warps, class gpgpu_t* gpu)
@@ -147,7 +148,9 @@ bool Scoreboard::checkCollision(unsigned wid, const class inst_t* inst, bool pri
   std::set<int> inst_regs;
 
   for (unsigned iii = 0; iii < inst->outcount; iii++)
+  {
     inst_regs.insert(inst->out[iii]);
+  }
 
   for (unsigned jjj = 0; jjj < inst->incount; jjj++)
     inst_regs.insert(inst->in[jjj]);
@@ -202,8 +205,14 @@ bool Scoreboard::checkReplayCollision(unsigned wid, const class inst_t* inst, st
   // make list of all regs in replay list
   for(const class inst_t* ins : replayInst) 
   {
+    //if(wid == 15)
+    //  std::cout <<"INST_OUTCOUNT_REPLAY "<<ins->outcount<<" pc "<<ins->pc<<" warp "<<wid<<"\n";
     for (unsigned iii = 0; iii < ins->outcount; iii++)
+    {
+      //std::cout <<"ins "<<ins->out[iii]<<" "<<ins->outcount<<" "<<inst_replay_regs.size()<<"\n";
       inst_replay_regs.insert(ins->out[iii]);
+    }
+
 
     for (unsigned jjj = 0; jjj < ins->incount; jjj++)
       inst_replay_regs.insert(ins->in[jjj]);
