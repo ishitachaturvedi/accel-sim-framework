@@ -1115,10 +1115,6 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   int reg_id = pipe_reg_set.get_free_id(m_config->sub_core_model, sch_id);
 
   assert(pipe_reg);
-  if(warp_id == 4)
-  {
-    cout <<"PC_FREED_HERE_IN "<<m_warp[warp_id]->freed_pc()<<"\n";
-  }
 
   m_warp[warp_id]->ibuffer_free();
   assert(next_inst->valid());
@@ -1170,10 +1166,6 @@ void shader_core_ctx::issue_warp_push_in_replay(register_set &pipe_reg_set,
                                  const warp_inst_t *next_inst,
                                  const active_mask_t &active_mask,
                                  unsigned warp_id, unsigned sch_id, int replay_buffer_idx, int pc_num, int sid, int MEM_ON) {
-  if(warp_id == 4)
-  {
-    cout <<"PC_FREED_HERE_OOO "<<m_warp[warp_id]->freed_pc()<<"\n";
-  }                                 
 
   m_warp[warp_id]->ibuffer_free();
   warp_inst_t *pipe_reg = const_cast<warp_inst_t*>(next_inst);
@@ -1199,10 +1191,6 @@ void shader_core_ctx::issue_warp_push_in_replay_mem(register_set &pipe_reg_set,
                                  const warp_inst_t *next_inst,
                                  const active_mask_t &active_mask,
                                  unsigned warp_id, unsigned sch_id, int replay_buffer_idx, int pc_num, int sid, int MEM_ON) {
-  if(warp_id == 4)
-  {
-    cout <<"PC_FREED_HERE_MEM "<<m_warp[warp_id]->freed_pc()<<"\n";
-  }
 
   m_warp[warp_id]->ibuffer_free();
   warp_inst_t *pipe_reg = const_cast<warp_inst_t*>(next_inst);
@@ -2116,6 +2104,8 @@ void scheduler_unit::cycle(int m_cluster_id) {
         //verify_stall(warp_id, previous_issued_inst_exec_type);
 
         pI = warp(warp_id).ibuffer_next_inst();
+        // incremement total inst picked up for issuing
+        m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;
         if(issued == 0)
           last_exec_inst = warp(warp_id).ibuffer_next_inst();
         // Jin: handle cdp latency;
@@ -2469,6 +2459,7 @@ void scheduler_unit::cycle(int m_cluster_id) {
             if(!replay_collision_mem && !replay_collision_ooo)
             {
               last_exec_inst = warp(warp_id).ibuffer_check_indep_inst();
+              m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;
               consec_inst_indep = m_scoreboard->checkConsecutiveInstIndep(pI,last_exec_inst);
               if(consec_inst_indep)
               {
@@ -2558,7 +2549,7 @@ void scheduler_unit::cycle(int m_cluster_id) {
   {
     //replay instructions in pipeline already
     issued_inst = replay_buffer_cycle(m_cluster_id, 0, mem_data_stall_test, comp_data_stall_test, ibuffer_stall_test, comp_str_stall_test ,
-   mem_str_stall_test, other_stall_test1, other_stall_test2, other_stall_test3);
+    mem_str_stall_test, other_stall_test1, other_stall_test2, other_stall_test3);
   }
 
   if(m_shader->m_config->gpgpu_reply_buffer)
@@ -2580,6 +2571,7 @@ void scheduler_unit::cycle(int m_cluster_id) {
             //m_shader->m_warp[warp_num]->replay_buffer_fill(id,pI,pc_num);
             const active_mask_t &active_mask = m_shader->get_active_mask(warp_num, pI);
             m_shader->issue_warp_push_in_replay(*m_mem_out, pI, active_mask, warp_num, m_id, id, pc_num, m_shader->get_sid(),1);
+            m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;
             opp_for_ooo++;
         }
       }
@@ -2594,6 +2586,7 @@ void scheduler_unit::cycle(int m_cluster_id) {
             //m_shader->m_warp[warp_num]->replay_buffer_fill(id,pI,pc_num);
             const active_mask_t &active_mask = m_shader->get_active_mask(warp_num, pI);
             m_shader->issue_warp_push_in_replay(*m_mem_out, pI, active_mask, warp_num, m_id, id, pc_num, m_shader->get_sid(),0);
+            m_stats->m_num_put_inst_in_DEB[m_shader->get_sid()]++;
         }
       }
     }
@@ -3165,6 +3158,7 @@ bool scheduler_unit::replay_buffer_cycle(int m_cluster_id, int MEM_ON, int mem_d
         //verify_stall(warp_id, previous_issued_inst_exec_type);
 
         pI = warp(warp_id).replay_buffer_next_inst();
+        m_stats->m_num_tried_to_issue_DEB[m_shader->get_sid()]++;
         if(issued == 0)
           last_exec_inst = warp(warp_id).replay_buffer_next_inst();
         // Jin: handle cdp latency;

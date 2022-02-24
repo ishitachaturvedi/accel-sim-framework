@@ -46,6 +46,9 @@ struct shader_core_power_stats_pod {
   float *m_pipeline_duty_cycle[NUM_STAT_IDX];
   unsigned *m_num_decoded_insn[NUM_STAT_IDX];  // number of instructions
                                                // committed by this shader core
+  unsigned *m_num_tried_to_issue_insn[NUM_STAT_IDX]; // NUmber of times IBuffer accessed
+  unsigned *m_num_tried_to_issue_DEB[NUM_STAT_IDX]; // NUmber of times OOO accessed
+  unsigned *m_num_put_inst_in_DEB[NUM_STAT_IDX]; // NUmber of times OOO accessed
   unsigned
       *m_num_FPdecoded_insn[NUM_STAT_IDX];  // number of instructions committed
                                             // by this shader core
@@ -176,6 +179,9 @@ class power_stat_t {
   unsigned long long noc_tr_kernel;
   unsigned long long noc_rc_kernel;
   unsigned long long tot_inst_execution;
+  unsigned long long tot_ibuffer_access;
+  unsigned long long tot_put_inst_in_DEB;
+  unsigned long long tot_DEB_accessed;
   unsigned long long tot_int_inst_execution;
   unsigned long long tot_fp_inst_execution;
   unsigned long long commited_inst_execution;
@@ -206,12 +212,61 @@ class power_stat_t {
     double total_inst = 0;
     for (unsigned i = 0; i < m_config->num_shader(); i++) {
       if(aggregate_stat)
+      {
         total_inst += (pwr_core_stat->m_num_decoded_insn[CURRENT_STAT_IDX][i]);
+      }
       else
+      {
         total_inst += (pwr_core_stat->m_num_decoded_insn[CURRENT_STAT_IDX][i]) -
                     (pwr_core_stat->m_num_decoded_insn[PREV_STAT_IDX][i]);
+      }
     }
     return total_inst;
+  }
+  double get_total_ibuffer_accessed(bool aggregate_stat) {
+    double total_inst_tried_issue = 0;
+    for (unsigned i = 0; i < m_config->num_shader(); i++) {
+      if(aggregate_stat)
+      {
+        total_inst_tried_issue+= (pwr_core_stat->m_num_tried_to_issue_insn[CURRENT_STAT_IDX][i]);
+      }
+      else
+      {
+        total_inst_tried_issue+= (pwr_core_stat->m_num_tried_to_issue_insn[CURRENT_STAT_IDX][i]) -
+                    (pwr_core_stat->m_num_tried_to_issue_insn[PREV_STAT_IDX][i]);
+      }
+    }
+    return total_inst_tried_issue;
+  }
+  double get_total_DEB_accessed(bool aggregate_stat) {
+    double total_inst_tried_issue = 0;
+    for (unsigned i = 0; i < m_config->num_shader(); i++) {
+      if(aggregate_stat)
+      {
+        total_inst_tried_issue+= (pwr_core_stat->m_num_tried_to_issue_DEB[CURRENT_STAT_IDX][i]);
+      }
+      else
+      {
+        total_inst_tried_issue+= (pwr_core_stat->m_num_tried_to_issue_DEB[CURRENT_STAT_IDX][i]) -
+                    (pwr_core_stat->m_num_tried_to_issue_DEB[PREV_STAT_IDX][i]);
+      }
+    }
+    return total_inst_tried_issue;
+  }
+  double get_total_put_inst_in_DEB(bool aggregate_stat) {
+    double total_inst_tried_issue = 0;
+    for (unsigned i = 0; i < m_config->num_shader(); i++) {
+      if(aggregate_stat)
+      {
+        total_inst_tried_issue+= (pwr_core_stat->m_num_put_inst_in_DEB[CURRENT_STAT_IDX][i]);
+      }
+      else
+      {
+        total_inst_tried_issue+= (pwr_core_stat->m_num_put_inst_in_DEB[CURRENT_STAT_IDX][i]) -
+                    (pwr_core_stat->m_num_put_inst_in_DEB[PREV_STAT_IDX][i]);
+      }
+    }
+    return total_inst_tried_issue;
   }
   double get_total_int_inst(bool aggregate_stat) {
     double total_inst = 0;

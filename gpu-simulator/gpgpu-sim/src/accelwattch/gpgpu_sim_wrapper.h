@@ -109,10 +109,10 @@ class gpgpu_sim_wrapper {
                                 bool print_trace);
   void power_metrics_calculations();
   void set_model_voltage(double model_voltage);
-  void set_inst_power(bool clk_gated_lanes, double tot_cycles,
+  void set_inst_power(bool clk_gated_lanes, double tot_cycles, double tot_ibuffer_used,
                       double busy_cycles, double tot_inst, double int_inst,
                       double fp_inst, double load_inst, double store_inst,
-                      double committed_inst);
+                      double committed_inst, double tot_DEB_written, double tot_DEB_used, int TOT_INST_OOO);
   void set_regfile_power(double reads, double writes, double ops);
   void set_icache_power(double accesses, double misses);
   void set_ccache_power(double accesses, double misses);

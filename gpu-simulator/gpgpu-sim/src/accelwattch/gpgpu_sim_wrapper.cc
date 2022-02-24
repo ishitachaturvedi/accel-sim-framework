@@ -31,9 +31,10 @@
 #include <sys/stat.h>
 #define SP_BASE_POWER 0
 #define SFU_BASE_POWER 0
+#include <iostream>
 
 static const char* pwr_cmp_label[] = {
-    "IBP,", "ICP,", "DCP,", "TCP,", "CCP,", "SHRDP,", "RFP,", "INTP,", 
+    "IBP,","DEBP,","ICP,", "DCP,", "TCP,", "CCP,", "SHRDP,", "RFP,", "INTP,", 
     "FPUP,", "DPUP,", "INT_MUL24P,", "INT_MUL32P,", "INT_MULP,", "INT_DIVP,", 
     "FP_MULP,", "FP_DIVP,", "FP_SQRTP,", "FP_LGP,", "FP_SINP,", "FP_EXP,", 
     "DP_MULP,", "DP_DIVP,", "TENSORP,", "TEXP,", "SCHEDP,", "L2CP,", "MCP,", "NOCP,", 
@@ -41,6 +42,7 @@ static const char* pwr_cmp_label[] = {
 
 enum pwr_cmp_t {
   IBP=0,
+  DEBP,
   ICP,
   DCP,
   TCP,
@@ -266,16 +268,22 @@ void gpgpu_sim_wrapper::reset_counters() {
   return;
 }
 
-void gpgpu_sim_wrapper::set_inst_power(bool clk_gated_lanes, double tot_cycles,
+void gpgpu_sim_wrapper::set_inst_power(bool clk_gated_lanes, double tot_cycles, double tot_ibuffer_used,
                                        double busy_cycles, double tot_inst,
                                        double int_inst, double fp_inst,
                                        double load_inst, double store_inst,
-                                       double committed_inst) {
+                                       double committed_inst, double tot_DEB_written, double tot_DEB_used, int TOT_INST_OOO) {
   p->sys.core[0].gpgpu_clock_gated_lanes = clk_gated_lanes;
   p->sys.core[0].total_cycles = tot_cycles;
   p->sys.core[0].busy_cycles = busy_cycles;
   p->sys.core[0].total_instructions =
       tot_inst * p->sys.scaling_coefficients[TOT_INST];
+  p->sys.core[0].tot_ibuffer_used =
+      tot_ibuffer_used * p->sys.scaling_coefficients[TOT_INST];
+  p->sys.core[0].tot_DEB_written =
+      tot_DEB_written * p->sys.scaling_coefficients[TOT_INST]/2;
+  p->sys.core[0].tot_DEB_used =
+      tot_DEB_used * p->sys.scaling_coefficients[TOT_INST]/2;
   p->sys.core[0].int_instructions =
       int_inst * p->sys.scaling_coefficients[FP_INT];
   p->sys.core[0].fp_instructions =
@@ -285,6 +293,8 @@ void gpgpu_sim_wrapper::set_inst_power(bool clk_gated_lanes, double tot_cycles,
   p->sys.core[0].committed_instructions = committed_inst;
   sample_perf_counters[FP_INT] = int_inst + fp_inst;
   sample_perf_counters[TOT_INST] = tot_inst;
+  //cout <<"ORIG_NUM "<<tot_inst<<" "<<tot_ibuffer_used<<" "<<tot_DEB_used<<" "<<tot_DEB_written<<"\n";
+  //cout <<"MUL_NUM "<<p->sys.core[0].total_instructions<<" "<<p->sys.core[0].tot_ibuffer_used<<" "<<p->sys.core[0].tot_DEB_used<<" "<<p->sys.core[0].tot_DEB_written<<"\n";
 }
 
 void gpgpu_sim_wrapper::set_regfile_power(double reads, double writes,
@@ -856,6 +866,19 @@ void gpgpu_sim_wrapper::update_components_power()
           +proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic
           +proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic
           +proc->cores[0]->ifu->ID_inst->rt_power.readOp.dynamic)/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[DEBP]=(proc->cores[0]->ifu->DEB->rt_power.readOp.dynamic
+          +proc->cores[0]->ifu->DEB->rt_power.writeOp.dynamic
+          +proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic
+          +proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic
+          +proc->cores[0]->ifu->ID_inst->rt_power.readOp.dynamic)/(proc->cores[0]->executionTime);
+
+  //cout <<"IB_CALC_POWER "<<proc->cores[0]->ifu->IB->rt_power.readOp.dynamic<<" "<<proc->cores[0]->ifu->IB->rt_power.writeOp.dynamic<<" "<<
+  //proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic <<" "<<proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic<<" "<<
+  //proc->cores[0]->ifu->ID_inst->rt_power.readOp.dynamic<<" "<<proc->cores[0]->executionTime<<" "<<sample_cmp_pwr[IBP]<<"\n";
+
+  //cout <<"DEB_CALC_POWER "<<proc->cores[0]->ifu->DEB->rt_power.readOp.dynamic<<" "<<proc->cores[0]->ifu->DEB->rt_power.writeOp.dynamic<<" "<<
+  //proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic <<" "<<proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic<<" "<<
+  //proc->cores[0]->ifu->ID_inst->rt_power.readOp.dynamic<<" "<<proc->cores[0]->executionTime<<" "<<sample_cmp_pwr[DEBP]<<"\n";
 
   sample_cmp_pwr[ICP]=proc->cores[0]->ifu->icache.rt_power.readOp.dynamic/(proc->cores[0]->executionTime);
 
@@ -956,16 +979,16 @@ void gpgpu_sim_wrapper::update_components_power()
   	}
   }
   
-  proc_power+=sample_cmp_pwr[CONSTP]+sample_cmp_pwr[STATICP];
+  proc_power+=sample_cmp_pwr[CONSTP]+sample_cmp_pwr[STATICP];  //Ishita Test
   if(!g_dvfs_enabled){ // sanity check will fail when voltage scaling is applied, fix later
 	  double sum_pwr_cmp=0;
 	  for(unsigned i=0; i<num_pwr_cmps; i++){
 	    sum_pwr_cmp+=sample_cmp_pwr[i];
 	  }
 	  bool check=false;
+    proc_power = sum_pwr_cmp;
 	  check=sanity_check(sum_pwr_cmp,proc_power);
 	  if(!check)
-	    printf("sum_pwr_cmp %f : proc_power %f \n",sum_pwr_cmp,proc_power);
 	  assert("Total Power does not equal the sum of the components\n" && (check));
   }
 }
@@ -986,6 +1009,7 @@ void gpgpu_sim_wrapper::print_power_kernel_stats(
       powerfile << "gpu_avg_" << pwr_cmp_label[i] << " = "
                 << kernel_cmp_pwr[i].avg / kernel_sample_count << std::endl;
     }
+
     for (unsigned i = 0; i < num_perf_counters; ++i) {
       powerfile << "gpu_avg_" << perf_count_label[i] << " = "
                 << kernel_cmp_perf_counters[i].avg / kernel_sample_count

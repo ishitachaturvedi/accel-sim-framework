@@ -29,6 +29,7 @@
 
 
 #include "power_interface.h"
+#include "fast.h"
 
 
 void init_mcpat(const gpgpu_sim_config &config,
@@ -67,12 +68,13 @@ void mcpat_cycle(const gpgpu_sim_config &config,
     }
 
     wrapper->set_inst_power(
-        shdr_config->gpgpu_clock_gated_lanes, stat_sample_freq,
+        shdr_config->gpgpu_clock_gated_lanes, stat_sample_freq, power_stats->get_total_ibuffer_accessed(0),
         stat_sample_freq, power_stats->get_total_inst(0),
         power_stats->get_total_int_inst(0), power_stats->get_total_fp_inst(0),
         power_stats->get_l1d_read_accesses(0),
         power_stats->get_l1d_write_accesses(0),
-        power_stats->get_committed_inst(0));
+        power_stats->get_committed_inst(0),
+        power_stats->get_total_put_inst_in_DEB(0), power_stats->get_total_DEB_accessed(0), DEB_BUFFER_SIZE);
 
     // Single RF for both int and fp ops
     wrapper->set_regfile_power(power_stats->get_regfile_reads(0),
@@ -270,25 +272,30 @@ void calculate_hw_mcpat(const gpgpu_sim_config &config,
 
     if(aggregate_power_stats){
       power_stats->tot_inst_execution += power_stats->get_total_inst(1);
+      power_stats->tot_ibuffer_access += power_stats->get_total_ibuffer_accessed(1);
+      power_stats->tot_put_inst_in_DEB += power_stats->get_total_put_inst_in_DEB(1);
+      power_stats->tot_DEB_accessed += power_stats->get_total_DEB_accessed(1);
       power_stats->tot_int_inst_execution +=  power_stats->get_total_int_inst(1);
       power_stats->tot_fp_inst_execution +=  power_stats->get_total_fp_inst(1);
       power_stats->commited_inst_execution += power_stats->get_committed_inst(1);
       wrapper->set_inst_power(
-        shdr_config->gpgpu_clock_gated_lanes, cycle, //TODO: core.[0] cycles counts don't matter, remove this
+        shdr_config->gpgpu_clock_gated_lanes, cycle, power_stats->tot_ibuffer_access,//TODO: core.[0] cycles counts don't matter, remove this
         cycle, power_stats->tot_inst_execution,
         power_stats->tot_int_inst_execution, power_stats->tot_fp_inst_execution,
         l1_read_hits + l1_read_misses,
         l1_write_hits + l1_write_misses,
-        power_stats->commited_inst_execution);
+        power_stats->commited_inst_execution,
+        power_stats->tot_put_inst_in_DEB, power_stats->tot_DEB_accessed, DEB_BUFFER_SIZE);
     }
     else{
     wrapper->set_inst_power(
-        shdr_config->gpgpu_clock_gated_lanes, cycle, //TODO: core.[0] cycles counts don't matter, remove this
+        shdr_config->gpgpu_clock_gated_lanes, cycle, power_stats->get_total_ibuffer_accessed(1),//TODO: core.[0] cycles counts don't matter, remove this
         cycle, power_stats->get_total_inst(1),
         power_stats->get_total_int_inst(1), power_stats->get_total_fp_inst(1),
         l1_read_hits + l1_read_misses,
         l1_write_hits + l1_write_misses,
-        power_stats->get_committed_inst(1));
+        power_stats->get_committed_inst(1),
+        power_stats->get_total_put_inst_in_DEB(1), power_stats->get_total_DEB_accessed(1), DEB_BUFFER_SIZE);
     }
 
     // Single RF for both int and fp ops -- activity factor set to 0 for Accelwattch HW and Accelwattch Hybrid because no HW Perf Stats for register files

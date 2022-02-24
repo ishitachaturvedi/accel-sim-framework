@@ -483,7 +483,7 @@ class shd_warp_t {
   class shader_core_ctx * get_shader() { return m_shader; }
  private:
   static const unsigned IBUFFER_SIZE = 2;
-  static const unsigned REPLAY_BUFFER_SIZE = 1;	
+  static const unsigned REPLAY_BUFFER_SIZE = 1;	// also change DEB_BUFFER_SIZE size in main.cc
   static const unsigned REPLAY_BUFFER_SIZE_MEM = 1;
   class shader_core_ctx *m_shader;
   unsigned m_cta_id;
@@ -1959,6 +1959,10 @@ struct shader_core_stats_pod {
   unsigned *m_last_num_sim_winsn;
   unsigned *
       m_num_decoded_insn;  // number of instructions decoded by this shader core
+  unsigned *
+      m_num_tried_to_issue_insn;  // number of cycles inst was tried to be issued
+  unsigned *m_num_tried_to_issue_DEB;
+  unsigned *m_num_put_inst_in_DEB;
   float *m_pipeline_duty_cycle;
   unsigned *m_num_FPdecoded_insn;
   unsigned *m_num_INTdecoded_insn;
@@ -2065,6 +2069,12 @@ class shader_core_stats : public shader_core_stats_pod {
     m_pipeline_duty_cycle =
         (float *)calloc(config->num_shader(), sizeof(float));
     m_num_decoded_insn =
+        (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
+    m_num_tried_to_issue_insn =
+        (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
+    m_num_tried_to_issue_DEB =
+        (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
+    m_num_put_inst_in_DEB =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_num_FPdecoded_insn =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));

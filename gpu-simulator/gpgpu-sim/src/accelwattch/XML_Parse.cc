@@ -526,6 +526,12 @@ void ParseXML::parse(char* filepath) {
       continue;
     }
     if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "TOT_INST_OOO") == 0) {
+      sys.TOT_INST_OOO =
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
+      continue;
+    }
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
                "FP_INT") == 0) {
       sys.scaling_coefficients[FP_INT] =
           atof(xNode2.getChildNode("param", i).getAttribute("value"));
@@ -1197,6 +1203,24 @@ void ParseXML::parse(char* filepath) {
               if (strcmp(xNode3.getChildNode("stat", k).getAttribute("name"),
                          "total_instructions") == 0) {
                 sys.core[i].total_instructions =
+                    atof(xNode3.getChildNode("stat", k).getAttribute("value"));
+                continue;
+              }
+              if (strcmp(xNode3.getChildNode("stat", k).getAttribute("name"),
+                         "tot_ibuffer_used") == 0) {
+                sys.core[i].tot_ibuffer_used =
+                    atof(xNode3.getChildNode("stat", k).getAttribute("value"));
+                continue;
+              }
+              if (strcmp(xNode3.getChildNode("stat", k).getAttribute("name"),
+                         "tot_DEB_written") == 0) {
+                sys.core[i].tot_DEB_written =
+                    atof(xNode3.getChildNode("stat", k).getAttribute("value"));
+                continue;
+              }
+              if (strcmp(xNode3.getChildNode("stat", k).getAttribute("name"),
+                         "tot_DEB_used") == 0) {
+                sys.core[i].tot_DEB_used =
                     atof(xNode3.getChildNode("stat", k).getAttribute("value"));
                 continue;
               }
@@ -4519,7 +4543,7 @@ void ParseXML::initialize()  // Initialize all
   sys.interconnect_projection_type = 1;
   sys.idle_core_power = 0;
   int i, j;
-  for (i = 0; i <= 63; i++) {
+  for (i = 0; i <= NUM_PERFORMANCE_COUNTERS; i++) {
     sys.scaling_coefficients[i] = 1;
     sys.core[i].clock_rate = 1;
     sys.core[i].opt_local = true;
@@ -4564,6 +4588,9 @@ void ParseXML::initialize()  // Initialize all
     sys.core[i].RAS_size = 1;
     // all stats at the level of system.core(0-n)
     sys.core[i].total_instructions = 1;
+    sys.core[i].tot_ibuffer_used = 1;
+    sys.core[i].tot_DEB_written = 1;
+    sys.core[i].tot_DEB_used = 1;
     sys.core[i].int_instructions = 1;
     sys.core[i].fp_instructions = 1;
     sys.core[i].branch_instructions = 1;

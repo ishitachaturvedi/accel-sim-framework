@@ -85,6 +85,7 @@ class InstFetchU : public Component {
   enum Cache_policy cache_p;
   InstCache icache;
   ArrayST *IB;
+  ArrayST *DEB;
   ArrayST *BTB;
   BranchPredictor *BPT;
   inst_decoder *ID_inst;

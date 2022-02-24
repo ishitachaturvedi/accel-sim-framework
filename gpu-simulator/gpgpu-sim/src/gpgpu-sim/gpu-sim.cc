@@ -1473,6 +1473,7 @@ void gpgpu_sim::gpu_print_stat() {
                   gpu_sim_insn, m_config.g_power_simulation_mode, m_config.g_dvfs_enabled, 
                   m_config.g_hw_perf_file_name, m_config.g_hw_perf_bench_name, executed_kernel_name(), m_config.accelwattch_hybrid_configuration, m_config.g_aggregate_power_stats);
     }
+    cout <<"ENTERING ACCELSIM HERE\n";
     m_gpgpusim_wrapper->print_power_kernel_stats(
         gpu_sim_cycle, gpu_tot_sim_cycle, gpu_tot_sim_insn + gpu_sim_insn,
         kernel_info_str, true);

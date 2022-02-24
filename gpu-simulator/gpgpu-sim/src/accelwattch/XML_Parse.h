@@ -229,6 +229,7 @@ typedef struct {
   int machine_bits;
   int virtual_address_width;
   int physical_address_width;
+  int TOT_INST_OOO;
   int opcode_width;
   int micro_opcode_width;
   int instruction_length;
@@ -274,6 +275,9 @@ typedef struct {
 
   // all stats at the level of system.core(0-n)
   double total_instructions;
+  double tot_ibuffer_used;
+  double tot_DEB_written;
+  double tot_DEB_used;
   double int_instructions;
   double fp_instructions;
   double branch_instructions;
@@ -700,6 +704,7 @@ typedef struct {
   int machine_bits;
   int virtual_address_width;
   int physical_address_width;
+  int TOT_INST_OOO;
   int virtual_memory_page_size;
   double idle_core_power;
   double num_idle_cores;
@@ -713,7 +718,7 @@ typedef struct {
   system_L2 L2[64];
   system_L2 l2;
   system_L3 L3[64];
-  system_NoC NoC[64];
+  system_NoC NoC[64];  //64
   system_mem mem;
   system_mc mc;
   system_mc flashc;

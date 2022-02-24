@@ -250,6 +250,7 @@ int ibuffer_flush_count2 = 0;
 int ibuffer_flush_count3 = 0;
 int replay_flush_count = 0;
 int L1D_total_cache_reservation_fails = 0;
+int DEB_BUFFER_SIZE = 1;
 
 // writing the warp issued order to file
 ofstream write_warps;

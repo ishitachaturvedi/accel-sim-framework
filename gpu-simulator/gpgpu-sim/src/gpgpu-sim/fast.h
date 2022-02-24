@@ -208,3 +208,5 @@ extern int L1D_total_cache_reservation_fails;
 
 extern int present_ongoing_cycle;
 extern int opcode_tracer;
+
+extern int DEB_BUFFER_SIZE;

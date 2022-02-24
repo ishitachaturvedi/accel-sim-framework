@@ -47,6 +47,7 @@
 #include "const.h"
 #include "io.h"
 #include "parameter.h"
+#include <iostream>
 //#include "globalvar.h"
 // double exClockRate;
 //*********************
@@ -91,6 +92,7 @@ InstFetchU::InstFetchU(ParseXML* XML_interface, int ithCore_,
       interface_ip(*interface_ip_),
       coredynp(dyn_p_),
       IB(0),
+      DEB(0),
       BTB(0),
       ID_inst(0),
       ID_operand(0),
@@ -323,7 +325,52 @@ InstFetchU::InstFetchU(ParseXML* XML_interface, int ithCore_,
                    coredynp.core_ty);
   IB->area.set_area(IB->area.get_area() + IB->local_result.area);
   area.set_area(area.get_area() + IB->local_result.area);
-  // output_data_csv(IB.IB.local_result);
+
+  // Defered Execution Buffer buffer
+  data =
+      XML->sys.core[ithCore].instruction_length *
+      XML->sys.core[ithCore]
+          .peak_issue_width;  // icache.caches.l_ip.line_sz; //multiple threads
+                              // timing sharing the instruction buffer.
+  interface_ip.is_cache = false;
+  interface_ip.pure_ram = true;
+  interface_ip.pure_cam = false;
+  interface_ip.line_sz = int(ceil(data / 8.0));
+  interface_ip.cache_sz =
+      XML->sys.core[ithCore].number_hardware_threads *
+                  XML->sys.core[ithCore].instruction_buffer_size *
+                  interface_ip.line_sz >
+              64
+          ? XML->sys.core[ithCore].number_hardware_threads *
+                XML->sys.core[ithCore].instruction_buffer_size *
+                interface_ip.line_sz
+          : 64;
+  interface_ip.assoc = 1;
+  interface_ip.nbanks = 1;
+  interface_ip.out_w = interface_ip.line_sz * 8;
+  interface_ip.access_mode = 0;
+  interface_ip.throughput = 1.0 / clockRate;
+  interface_ip.latency = 1.0 / clockRate;
+  interface_ip.obj_func_dyn_energy = 0;
+  interface_ip.obj_func_dyn_power = 0;
+  interface_ip.obj_func_leak_power = 0;
+  interface_ip.obj_func_cycle_t = 1;
+  // NOTE: Assuming DEB is time slice shared among threads, every fetch op will
+  // at least fetch "fetch width" instructions.
+  interface_ip.num_rw_ports =
+      debug
+          ? 1
+          : XML->sys.core[ithCore]
+                .number_instruction_fetch_ports;  // XML->sys.core[ithCore].fetch_width;
+  interface_ip.num_rd_ports = 0;
+  interface_ip.num_wr_ports = 0;
+  interface_ip.num_se_rd_ports = 0;
+  DEB = new ArrayST(&interface_ip, "DeferedExecBuffer", Core_device, coredynp.opt_local,
+                   coredynp.core_ty);
+  DEB->area.set_area(DEB->area.get_area() + DEB->local_result.area);
+  area.set_area(area.get_area() + DEB->local_result.area);
+
+  // output_data_csv(DEB.DEB.local_result);
 
   //	  inst_decoder.opcode_length = XML->sys.core[ithCore].opcode_width;
   //	  inst_decoder.init_decoder(is_default, &interface_ip);
@@ -3249,6 +3296,10 @@ void InstFetchU::computeEnergy(bool is_tdp) {
         XML->sys.core[ithCore].peak_issue_width;
     IB->tdp_stats = IB->stats_t;
 
+    DEB->stats_t.readAc.access = DEB->stats_t.writeAc.access =
+        XML->sys.core[ithCore].peak_issue_width;
+    DEB->tdp_stats = DEB->stats_t;
+
     if (coredynp.predictionW > 0) {
       BTB->stats_t.readAc.access =
           coredynp.predictionW;  // XML->sys.core[ithCore].BTB.read_accesses;
@@ -3298,9 +3349,17 @@ void InstFetchU::computeEnergy(bool is_tdp) {
         icache.caches->stats_t.readAc.miss;
     icache.prefetchb->rtp_stats = icache.prefetchb->stats_t;
 
-    IB->stats_t.readAc.access = IB->stats_t.writeAc.access =
-        XML->sys.core[ithCore].total_instructions;
+    // IB->stats_t.readAc.access = IB->stats_t.writeAc.access =  //change_Ishita
+    //     XML->sys.core[ithCore].total_instructions;
+    IB->stats_t.readAc.access = XML->sys.core[ithCore].tot_ibuffer_used;
+    IB->stats_t.writeAc.access = XML->sys.core[ithCore].total_instructions;
     IB->rtp_stats = IB->stats_t;
+
+    // DEB->stats_t.readAc.access = DEB->stats_t.writeAc.access =
+    //     XML->sys.core[ithCore].total_instructions;
+    DEB->stats_t.readAc.access = XML->sys.core[ithCore].tot_DEB_used;
+    DEB->stats_t.writeAc.access = XML->sys.core[ithCore].tot_DEB_written;
+    DEB->rtp_stats = DEB->stats_t;
     // cout<<"IB: total instructions: "<<IB->stats_t.readAc.access <<endl;
     if (coredynp.predictionW > 0) {
       BTB->stats_t.readAc.access =
@@ -3326,6 +3385,7 @@ void InstFetchU::computeEnergy(bool is_tdp) {
 
   icache.power_t.reset();
   IB->power_t.reset();
+  DEB->power_t.reset();
   //	ID_inst->power_t.reset();
   //	ID_operand->power_t.reset();
   //	ID_misc->power_t.reset();
@@ -3363,6 +3423,12 @@ void InstFetchU::computeEnergy(bool is_tdp) {
   IB->power_t.readOp.dynamic +=
       IB->local_result.power.readOp.dynamic * IB->stats_t.readAc.access +
       IB->stats_t.writeAc.access * IB->local_result.power.writeOp.dynamic;
+  //cout <<"IB_POWER "<<IB->local_result.power.readOp.dynamic<<" "<<IB->stats_t.readAc.access<<" "<<IB->stats_t.writeAc.access<<" "<<IB->local_result.power.writeOp.dynamic<<"\n";
+
+  DEB->power_t.readOp.dynamic +=
+      DEB->local_result.power.readOp.dynamic * DEB->stats_t.readAc.access +
+      DEB->stats_t.writeAc.access * DEB->local_result.power.writeOp.dynamic;
+  //cout <<"DEB_POWER "<<DEB->local_result.power.readOp.dynamic<<" "<<DEB->stats_t.readAc.access<<" "<<DEB->stats_t.writeAc.access<<" "<<DEB->local_result.power.writeOp.dynamic<<"\n";
   // cout << "IB power: "<<IB->power_t.readOp.dynamic<<endl;
   if (coredynp.predictionW > 0) {
     BTB->power_t.readOp.dynamic +=
@@ -3386,6 +3452,9 @@ void InstFetchU::computeEnergy(bool is_tdp) {
 
     IB->power = IB->power_t + IB->local_result.power * pppm_lkg;
     power = power + icache.power + IB->power;
+
+    DEB->power = DEB->power_t + DEB->local_result.power * pppm_lkg;
+    power = power + icache.power + DEB->power;
     if (coredynp.predictionW > 0) {
       BTB->power = BTB->power_t + BTB->local_result.power * pppm_lkg;
       power = power + BTB->power + BPT->power;
@@ -3420,6 +3489,16 @@ void InstFetchU::computeEnergy(bool is_tdp) {
     IB->rt_power.readOp.dynamic +=
         IB->local_result.power.writeOp.dynamic * IB->rtp_stats.writeAc.access;
     rt_power = rt_power + icache.rt_power + IB->rt_power;
+
+    //cout <<"IB_RT_POWER "<<IB->local_result.power.readOp.dynamic<<" "<<IB->rtp_stats.readAc.access<<" "<<IB->local_result.power.writeOp.dynamic<<" "<<IB->rtp_stats.writeAc.access<<"\n";
+
+    DEB->rt_power.readOp.dynamic =
+        DEB->local_result.power.readOp.dynamic * DEB->rtp_stats.readAc.access;
+    DEB->rt_power.readOp.dynamic +=
+        DEB->local_result.power.writeOp.dynamic * DEB->rtp_stats.writeAc.access;
+    //cout <<"DEB_RT_POWER "<<DEB->local_result.power.readOp.dynamic<<" "<<DEB->rtp_stats.readAc.access<<" "<<DEB->local_result.power.writeOp.dynamic<<" "<<DEB->rtp_stats.writeAc.access<<"\n";
+    rt_power = rt_power + icache.rt_power + DEB->rt_power;
+
     if (coredynp.predictionW > 0) {
       BTB->rt_power = BTB->power_t + BTB->local_result.power * pppm_lkg;
       rt_power = rt_power + BTB->rt_power + BPT->rt_power;
@@ -3518,6 +3597,24 @@ void InstFetchU::displayEnergy(uint32_t indent, int plevel, bool is_tdp) {
          << "Runtime Dynamic = " << IB->rt_power.readOp.dynamic / executionTime
          << " W" << endl;
     cout << endl;
+
+    cout << indent_str << "Defered Execution Buffer Buffer:" << endl;
+    cout << indent_str_next << "Area = " << DEB->area.get_area() * 1e-6
+         << " mm^2" << endl;
+    cout << indent_str_next
+         << "Peak Dynamic = " << DEB->power.readOp.dynamic * clockRate << " W"
+         << endl;
+    cout << indent_str_next << "Subthreshold Leakage = "
+         << (long_channel ? DEB->power.readOp.longer_channel_leakage
+                          : DEB->power.readOp.leakage)
+         << " W" << endl;
+    cout << indent_str_next
+         << "Gate Leakage = " << DEB->power.readOp.gate_leakage << " W" << endl;
+    cout << indent_str_next
+         << "Runtime Dynamic = " << DEB->rt_power.readOp.dynamic / executionTime
+         << " W" << endl;
+    cout << endl;
+
     cout << indent_str << "Instruction Decoder:" << endl;
     cout << indent_str_next << "Area = "
          << (ID_inst->area.get_area() + ID_operand->area.get_area() +

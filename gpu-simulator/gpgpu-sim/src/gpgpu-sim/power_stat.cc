@@ -62,6 +62,9 @@ void power_stat_t::clear(){
     for(unsigned j=0; j<m_config->num_shader(); ++j){
       pwr_core_stat->m_pipeline_duty_cycle[i][j]=0;                
       pwr_core_stat->m_num_decoded_insn[i][j]=0;
+      pwr_core_stat->m_num_tried_to_issue_insn[i][j]=0;
+      pwr_core_stat->m_num_tried_to_issue_DEB[i][j]=0;
+      pwr_core_stat->m_num_put_inst_in_DEB[i][j]=0;
       pwr_core_stat->m_num_FPdecoded_insn[i][j]=0;
       pwr_core_stat->m_num_INTdecoded_insn[i][j]=0;
       pwr_core_stat->m_num_storequeued_insn[i][j]=0;
@@ -207,6 +210,9 @@ void power_core_stat_t::print(FILE *fout) {
         fprintf(fout,"core %u:\n",i);
         fprintf(fout,"\tpipeline duty cycle =%f\n",m_pipeline_duty_cycle[CURRENT_STAT_IDX][i]);
         fprintf(fout,"\tTotal Deocded Instructions=%u\n",m_num_decoded_insn[CURRENT_STAT_IDX][i]);
+        fprintf(fout,"\tTotal cycles IBuffer accessed=%u\n",m_num_tried_to_issue_insn[CURRENT_STAT_IDX][i]);
+        fprintf(fout,"\tTotal Inst accessed from DEB (even if not issued)=%u\n",m_num_tried_to_issue_DEB[CURRENT_STAT_IDX][i]);
+        fprintf(fout,"\tTotal Inst put in DEB=%u\n",m_num_put_inst_in_DEB[CURRENT_STAT_IDX][i]);
         fprintf(fout,"\tTotal FP Deocded Instructions=%u\n",m_num_FPdecoded_insn[CURRENT_STAT_IDX][i]);
         fprintf(fout,"\tTotal INT Deocded Instructions=%u\n",m_num_INTdecoded_insn[CURRENT_STAT_IDX][i]);
         fprintf(fout,"\tTotal LOAD Queued Instructions=%u\n",m_num_loadqueued_insn[CURRENT_STAT_IDX][i]);
@@ -243,6 +249,9 @@ void power_core_stat_t::print(FILE *fout) {
 void power_core_stat_t::init() {
     m_pipeline_duty_cycle[CURRENT_STAT_IDX]=m_core_stats->m_pipeline_duty_cycle;
     m_num_decoded_insn[CURRENT_STAT_IDX]=m_core_stats->m_num_decoded_insn;
+    m_num_tried_to_issue_insn[CURRENT_STAT_IDX]=m_core_stats->m_num_tried_to_issue_insn;
+    m_num_tried_to_issue_DEB[CURRENT_STAT_IDX]=m_core_stats->m_num_tried_to_issue_DEB;
+    m_num_put_inst_in_DEB[CURRENT_STAT_IDX]=m_core_stats->m_num_put_inst_in_DEB;
     m_num_FPdecoded_insn[CURRENT_STAT_IDX]=m_core_stats->m_num_FPdecoded_insn;
     m_num_INTdecoded_insn[CURRENT_STAT_IDX]=m_core_stats->m_num_INTdecoded_insn;
     m_num_storequeued_insn[CURRENT_STAT_IDX]=m_core_stats->m_num_storequeued_insn;
@@ -282,6 +291,9 @@ void power_core_stat_t::init() {
 
     m_pipeline_duty_cycle[PREV_STAT_IDX]=(float*)calloc(m_config->num_shader(),sizeof(float));
     m_num_decoded_insn[PREV_STAT_IDX]=(unsigned *)calloc(m_config->num_shader(),sizeof(unsigned));
+    m_num_tried_to_issue_insn[PREV_STAT_IDX]=(unsigned *)calloc(m_config->num_shader(),sizeof(unsigned));
+    m_num_tried_to_issue_DEB[PREV_STAT_IDX]=(unsigned *)calloc(m_config->num_shader(),sizeof(unsigned));
+    m_num_put_inst_in_DEB[PREV_STAT_IDX]=(unsigned *)calloc(m_config->num_shader(),sizeof(unsigned));
     m_num_FPdecoded_insn[PREV_STAT_IDX]=(unsigned *)calloc(m_config->num_shader(),sizeof(unsigned));
     m_num_INTdecoded_insn[PREV_STAT_IDX]=(unsigned *)calloc(m_config->num_shader(),sizeof(unsigned));
     m_num_storequeued_insn[PREV_STAT_IDX]=(unsigned *)calloc(m_config->num_shader(),sizeof(unsigned));
@@ -327,6 +339,9 @@ void power_core_stat_t::save_stats() {
   for (unsigned i = 0; i < m_config->num_shader(); ++i) {
     m_pipeline_duty_cycle[PREV_STAT_IDX][i]=m_pipeline_duty_cycle[CURRENT_STAT_IDX][i];
     m_num_decoded_insn[PREV_STAT_IDX][i]= m_num_decoded_insn[CURRENT_STAT_IDX][i];
+    m_num_tried_to_issue_insn[PREV_STAT_IDX][i]= m_num_tried_to_issue_insn[CURRENT_STAT_IDX][i];
+    m_num_tried_to_issue_DEB[PREV_STAT_IDX][i]= m_num_tried_to_issue_DEB[CURRENT_STAT_IDX][i];
+    m_num_put_inst_in_DEB[PREV_STAT_IDX][i]= m_num_put_inst_in_DEB[CURRENT_STAT_IDX][i];
     m_num_FPdecoded_insn[PREV_STAT_IDX][i]=m_num_FPdecoded_insn[CURRENT_STAT_IDX][i];
     m_num_INTdecoded_insn[PREV_STAT_IDX][i]=m_num_INTdecoded_insn[CURRENT_STAT_IDX][i];
     m_num_storequeued_insn[PREV_STAT_IDX][i]=m_num_storequeued_insn[CURRENT_STAT_IDX][i];
@@ -399,6 +414,9 @@ power_stat_t::power_stat_t(const shader_core_config *shader_config,
   noc_rc_kernel = 0;
 
   tot_inst_execution = 0;
+  tot_ibuffer_access = 0;
+  tot_put_inst_in_DEB = 0;
+  tot_DEB_accessed = 0;
   tot_int_inst_execution = 0;
   tot_fp_inst_execution = 0;
   commited_inst_execution = 0;
