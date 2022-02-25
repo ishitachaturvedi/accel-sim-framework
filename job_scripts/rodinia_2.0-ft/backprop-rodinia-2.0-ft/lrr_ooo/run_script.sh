@@ -1,0 +1,1 @@
+../../../../gpu-simulator/bin/release/accel-sim.out -trace ../../../../hw_run/rodinia_2.0-ft/11.0/backprop-rodinia-2.0-ft/4096___data_result_4096_txt/traces/kernelslist.g -config ../../../../gpu-simulator/gpgpu-sim/configs/FAST-configs/gpgpusim.configlrr_ooo -config ../../../../gpu-simulator/configs/lrr_ooo/trace.config

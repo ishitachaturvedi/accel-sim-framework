@@ -1,0 +1,1 @@
+../../../gpu-simulator/bin/release/accel-sim.out -trace ../../../hw_run/deepbench/11.0/rnn_bench/train_half_128_32_1_lstm/traces/kernelslist.g -config ../../../gpu-simulator/gpgpu-sim/configs/FAST-configs/gpgpusim.configfast_in -config ../../../gpu-simulator/configs/lrr_ooo/trace.config
