@@ -1766,9 +1766,9 @@ int tensorcore_op(int inst_opcode) {
 bool ptx_thread_info::isSyncInst(const warp_inst_t *inst, unsigned lane_id)	
 {	
   addr_t pc = inst->pc;
-  //const ptx_instruction *pI = m_func_info->get_instruction(pc);	
-  //int inst_opcode = pI->get_opcode();	
-  int inst_opcode = opcode_tracer;
+  const ptx_instruction *pI = m_func_info->get_instruction(pc);	
+  int inst_opcode = pI->get_opcode();	
+  //int inst_opcode = opcode_tracer;
   return (inst_opcode == BAR_OP|| inst_opcode == CALL_OP || inst_opcode == CALLP_OP || inst_opcode == EXIT_OP	
         || inst_opcode == MEMBAR_OP || inst_opcode == RET_OP || inst_opcode == RETP_OP || inst_opcode == TRAP_OP ||inst_opcode == VOTE_OP	
         || inst_opcode == ACTIVEMASK_OP || inst_opcode == BREAK_OP || inst_opcode == BREAKADDR_OP	

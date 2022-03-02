@@ -235,7 +235,7 @@ class OptionParser {
         optionFound = true;
       }
       if (optionFound == false) {
-        fprintf(stderr, "\n\nGPGPU-Sim ** ERROR: Unknown Option: '%s' \n",
+        fprintf(stderr, "\n\nGPGPU-Sim ** ERROR: Unknown Option FOUND HERE: '%s' \n",
                 argv[i]);
         exit(1);
       }
