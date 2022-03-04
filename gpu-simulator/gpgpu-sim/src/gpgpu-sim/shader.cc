@@ -2624,36 +2624,43 @@ void scheduler_unit::cycle(int m_cluster_id) {
   if(mem_data_stall_test>0 && !issued_inst)
   {
     mem_data_stall++;
+    mem_data_stall_kernel++;
   }
 
   if(comp_data_stall_test>0 && !issued_inst)
   {
     comp_data_stall++;
+    comp_data_stall_kernel++;
   }
 
   if(ibuffer_stall_test>0 && !issued_inst)
   {
     ibuffer_stall++;
+    ibuffer_stall_kernel++;
   }
 
   if(mem_str_stall_test>0 && !issued_inst)
   {
     mem_str_stall++;
+    mem_str_stall_kernel++;
   }
 
   if(other_stall_test1>0 && !issued_inst)
   {
     other_stall1++;
+    other_stall1_kernel++;
   }
 
   if(other_stall_test2>0 && !issued_inst)
   {
     other_stall2++;
+    other_stall2_kernel++;
   }
 
   if(other_stall_test3>0 && !issued_inst)
   {
     other_stall3++;
+    other_stall3_kernel++;
   }
 
 }
@@ -3467,6 +3474,7 @@ bool scheduler_unit::replay_buffer_cycle(int m_cluster_id, int MEM_ON, int mem_d
     }
     if (issued) {
       warp_issue[warp_id]++;
+      ooo_opp_kernel++;
 
       issued_inst_count++;
 

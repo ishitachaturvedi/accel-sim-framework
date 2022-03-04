@@ -1118,6 +1118,17 @@ bool gpgpu_sim::active() {
 
 void gpgpu_sim::init() {
   // run a CUDA grid on the GPU microarchitecture simulator
+
+  mem_data_stall_kernel = 0;
+  comp_data_stall_kernel = 0;
+  ibuffer_stall_kernel = 0;
+  comp_str_stall_kernel = 0;
+  mem_str_stall_kernel = 0;
+  other_stall1_kernel = 0;
+  other_stall2_kernel = 0;
+  other_stall3_kernel = 0;
+  ooo_opp_kernel = 0;
+
   gpu_sim_cycle = 0;
   gpu_sim_insn = 0;
   last_gpu_sim_insn = 0;
@@ -1173,6 +1184,16 @@ void gpgpu_sim::update_stats() {
   partiton_reqs_in_parallel_util_total += partiton_reqs_in_parallel_util;
   gpu_tot_sim_cycle_parition_util += gpu_sim_cycle_parition_util;
   gpu_tot_occupancy += gpu_occupancy;
+
+  mem_data_stall_kernel = 0;
+  comp_data_stall_kernel = 0;
+  ibuffer_stall_kernel = 0;
+  comp_str_stall_kernel = 0;
+  mem_str_stall_kernel = 0;
+  other_stall1_kernel = 0;
+  other_stall2_kernel = 0;
+  other_stall3_kernel = 0;
+  ooo_opp_kernel = 0;
 
   gpu_sim_cycle = 0;
   partiton_reqs_in_parallel = 0;
@@ -1381,6 +1402,16 @@ void gpgpu_sim::gpu_print_stat() {
   std::string kernel_info_str = executed_kernel_info_string();
   fprintf(statfout, "%s", kernel_info_str.c_str());
 
+  printf("mem_data_stall_kernel = %d\n",mem_data_stall_kernel);
+  printf("comp_data_stall_kernel = %d\n",comp_data_stall_kernel);
+  printf("ibuffer_stall_kernel = %d\n",ibuffer_stall_kernel);
+  printf("comp_str_stall_kernel = %d\n",comp_str_stall_kernel);
+  printf("mem_str_stall_kernel = %d\n",mem_str_stall_kernel);
+  printf("other_stall1_kernel = %d\n",other_stall1_kernel);
+  printf("other_stall2_kernel = %d\n",other_stall2_kernel);
+  printf("other_stall3_kernel = %d\n",other_stall3_kernel);  
+  printf("ooo_opp_kernel = %d\n",ooo_opp_kernel);
+
   printf("gpu_sim_cycle = %lld\n", gpu_sim_cycle);
   printf("gpu_sim_insn = %lld\n", gpu_sim_insn);
   printf("gpu_ipc = %12.4f\n", (float)gpu_sim_insn / gpu_sim_cycle);
@@ -1473,7 +1504,6 @@ void gpgpu_sim::gpu_print_stat() {
                   gpu_sim_insn, m_config.g_power_simulation_mode, m_config.g_dvfs_enabled, 
                   m_config.g_hw_perf_file_name, m_config.g_hw_perf_bench_name, executed_kernel_name(), m_config.accelwattch_hybrid_configuration, m_config.g_aggregate_power_stats);
     }
-    cout <<"ENTERING ACCELSIM HERE\n";
     m_gpgpusim_wrapper->print_power_kernel_stats(
         gpu_sim_cycle, gpu_tot_sim_cycle, gpu_tot_sim_insn + gpu_sim_insn,
         kernel_info_str, true);
