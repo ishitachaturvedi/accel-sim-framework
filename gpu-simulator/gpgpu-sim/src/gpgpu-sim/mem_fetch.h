@@ -133,6 +133,9 @@ class mem_fetch {
 
   unsigned long long get_status_change_cycle() { return m_status_change; }
 
+  void set_pc_fetch(int pc) { pc_fetch = pc; }
+  int get_pc_fetch() { return pc_fetch; }
+
  private:
   // request source information
   unsigned m_request_uid;
@@ -140,6 +143,7 @@ class mem_fetch {
   unsigned m_tpc;
   unsigned m_wid;
   int cycle_issued;
+  int pc_fetch;
 
   // where is this request now?
   enum mem_fetch_status m_status;

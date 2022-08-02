@@ -3,3 +3,6 @@ gpu-app-collection/
 hw_run/
 sim_run_*
 *.DS_Store*
+job_scripts/
+test_jobs.slurm
+util

@@ -33,6 +33,27 @@
 #define SFU_BASE_POWER 0
 #include <iostream>
 
+#include "core.h"
+#include <assert.h>
+#include <algorithm>
+#include <cmath>
+#include <string>
+#include "cacti/basic_circuit.h"
+#include "const.h"
+#include "io.h"
+#include "parameter.h"
+
+#include "XML_Parse.h"
+#include "array.h"
+#include "basic_components.h"
+#include "cacti/arbiter.h"
+#include "cacti/crossbar.h"
+#include "cacti/parameter.h"
+#include "interconnect.h"
+#include "logic.h"
+#include "noc.h"
+#include "sharedcache.h"
+
 static const char* pwr_cmp_label[] = {
     "IBP,","DEBP,","ICP,", "DCP,", "TCP,", "CCP,", "SHRDP,", "RFP,", "INTP,", 
     "FPUP,", "DPUP,", "INT_MUL24P,", "INT_MUL32P,", "INT_MULP,", "INT_DIVP,", 
@@ -1002,6 +1023,7 @@ void gpgpu_sim_wrapper::print_power_kernel_stats(
     powerfile << kernel_info_string << std::endl;
 
     sanity_check((kernel_power.avg * kernel_sample_count), kernel_tot_power);
+
     powerfile << "Kernel Average Power Data:" << std::endl;
     powerfile << "kernel_avg_power = " << kernel_power.avg << std::endl;
 

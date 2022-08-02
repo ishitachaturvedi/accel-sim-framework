@@ -180,7 +180,7 @@ public:
                                                const warp_inst_t *pI);
   virtual void issue_warp(register_set &warp, const warp_inst_t *pI,
                           const active_mask_t &active_mask, unsigned warp_id,
-                          unsigned sch_id, int sid);
+                          unsigned sch_id, int sid, int m_cluster_id);
 
   virtual void issue_warp_push_in_replay(register_set &warp, const warp_inst_t *pI,
                   const active_mask_t &active_mask, unsigned warp_id,
@@ -192,11 +192,11 @@ public:
 
   virtual void issue_warp_push_from_replay(register_set &warp, const warp_inst_t *pI,
                   const active_mask_t &active_mask, unsigned warp_id,
-                  unsigned sch_id, int sid, int MEM_ON);
+                  unsigned sch_id, int sid, int MEM_ON, int m_cluster_id);
 
   virtual void issue_warp_push_from_replay_mem(register_set &warp, const warp_inst_t *pI,
                   const active_mask_t &active_mask, unsigned warp_id,
-                  unsigned sch_id, int sid, int MEM_ON);
+                  unsigned sch_id, int sid, int MEM_ON, int m_cluster_id);
 
   virtual bool isSyncInst(const warp_inst_t *inst, int warp_num);
 

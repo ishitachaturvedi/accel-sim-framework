@@ -547,9 +547,9 @@ void trace_shader_core_ctx::func_exec_inst(warp_inst_t &inst) {
 void trace_shader_core_ctx::issue_warp(register_set &warp,
                                        const warp_inst_t *pI,
                                        const active_mask_t &active_mask,
-                                       unsigned warp_id, unsigned sch_id, int sid) {
+                                       unsigned warp_id, unsigned sch_id, int sid, int m_cluster_id) {
 
-  shader_core_ctx::issue_warp(warp, pI, active_mask, warp_id, sch_id, sid);
+  shader_core_ctx::issue_warp(warp, pI, active_mask, warp_id, sch_id, sid, m_cluster_id);
 
   // delete warp_inst_t class here, it is not required anymore by gpgpu-sim
   // after issue
@@ -580,10 +580,10 @@ void trace_shader_core_ctx::issue_warp_push_in_replay_mem(register_set &warp, co
 
 void trace_shader_core_ctx::issue_warp_push_from_replay(register_set &warp, const warp_inst_t *pI,
                   const active_mask_t &active_mask, unsigned warp_id,
-                  unsigned sch_id, int sid, int MEM_ON) {
+                  unsigned sch_id, int sid, int MEM_ON, int m_cluster_id) {
 
   shader_core_ctx::issue_warp_push_from_replay(warp, pI, active_mask, warp_id,
-                  sch_id, sid, MEM_ON);
+                  sch_id, sid, MEM_ON, m_cluster_id);
 
   // delete warp_inst_t class here, it is not required anymore by gpgpu-sim
   // after issue
@@ -592,10 +592,10 @@ void trace_shader_core_ctx::issue_warp_push_from_replay(register_set &warp, cons
 
 void trace_shader_core_ctx::issue_warp_push_from_replay_mem(register_set &warp, const warp_inst_t *pI,
                   const active_mask_t &active_mask, unsigned warp_id,
-                  unsigned sch_id, int sid, int MEM_ON) {
+                  unsigned sch_id, int sid, int MEM_ON, int m_cluster_id) {
 
   shader_core_ctx::issue_warp_push_from_replay_mem(warp, pI, active_mask, warp_id,
-                  sch_id, sid, MEM_ON);
+                  sch_id, sid, MEM_ON, m_cluster_id);
 
   // delete warp_inst_t class here, it is not required anymore by gpgpu-sim
   // after issue

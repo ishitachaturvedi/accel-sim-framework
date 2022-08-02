@@ -47,6 +47,8 @@ class Scoreboard {
   void releaseRegister(unsigned wid, unsigned regnum);
 
   bool checkCollision(unsigned wid, const inst_t *inst, bool print) const;
+  void get_closest_dependence(unsigned wid, const inst_t *inst1, bool print, int m_cluster_id, int sid, int OOO_dep,
+int num_inst_OOO, unsigned stalls_between_issues, int isOOO);
   bool pendingWrites(unsigned wid) const;
   bool pendingWrites(unsigned wid, bool ignore) const;
   void printContents() const;
@@ -74,6 +76,10 @@ class Scoreboard {
 
   bool checkConsecutiveInstIndep(const inst_t *pI, const inst_t *last_exec_inst) const;
 
+  void set_num_cycles_deocode_issue(int num_cycles, const class warp_inst_t* inst);
+
+  void resetValuesOfScoreboard(int warp_id);
+
  private:
   void reserveRegister(unsigned wid, unsigned regnum, bool gpgpu_perfect_mem_data);
   int get_sid() const { return m_sid; }
@@ -83,6 +89,7 @@ class Scoreboard {
   // keeps track of pending writes to registers
   // indexed by warp id, reg_id => pending write count
   std::vector<std::set<unsigned> > reg_table;
+  std::vector<std::set<unsigned> > reg_table_all_regs_used_list;
   // Register that depend on a long operation (global, local or tex memory)
   std::vector<std::set<unsigned> > longopregs;
 
@@ -93,6 +100,7 @@ class Scoreboard {
   std::vector<std::set<unsigned> > reg_table_mem;
   //keep track of pending writes to computation operations
   std::vector<std::set<unsigned> > reg_table_comp;
+  std::vector<unsigned> warp_inst_issue_num;
 
   // Data structure to store reserve cycle plus reserving warp
   std::vector<std::map<unsigned, int>> reg_reserved_mem;
@@ -102,9 +110,16 @@ class Scoreboard {
   std::vector<std::map<unsigned, int>> reg_released_comp;
 
   std::vector<std::map<unsigned, int>> reg_reserved_type; // type of reserved instruction (mem or comp)
+  std::vector<std::map<unsigned, int>> reg_table_all_regs_used;
 
   std::vector<std::map<unsigned, int>> reg_reserved;
   std::vector<std::map<unsigned, int>> reg_released;
+
+  std::vector<std::map<unsigned, int>> num_cycles_decode_issue;
+
+  //std::vector<std::map<unsigned, int>> reg_reserved_inst;
+
+  std::vector<vector<int>> reg_reserved_inst;
 
   std::vector<std::map<unsigned, int>> reg_type_mem;
 

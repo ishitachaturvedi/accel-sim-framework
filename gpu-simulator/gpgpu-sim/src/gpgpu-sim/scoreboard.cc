@@ -52,10 +52,33 @@ Scoreboard::Scoreboard(unsigned sid, unsigned n_warps, class gpgpu_t* gpu)
   reg_released_comp.resize(n_warps);
   reg_reserved.resize(n_warps);
   reg_released.resize(n_warps);
+  warp_inst_issue_num.resize(n_warps);
+  reg_table_all_regs_used.resize(n_warps);
 
   reg_reserved_type.resize(n_warps);
-
+  reg_reserved_inst.resize(n_warps, vector<int>(200,0));
+  num_cycles_decode_issue.resize(n_warps);
+  reg_table_all_regs_used_list.resize(n_warps);
   m_gpu = gpu;
+}
+
+void Scoreboard::resetValuesOfScoreboard(int warp_id)
+{
+  std::set<unsigned>::const_iterator it2;
+  // for (it2 = reg_table_all_regs_used.begin(); it2 != reg_table_all_regs_used.end(); it2++)
+  // {
+  //   reg_table_all_regs_used[wid][*it2] = 0;
+  // }
+
+  for (it2 = reg_table_all_regs_used_list[warp_id].begin(); it2 != reg_table_all_regs_used_list[warp_id].end(); it2++)
+  {
+    if (reg_table_all_regs_used[warp_id].find(*it2) != reg_table_all_regs_used[warp_id].end()) 
+    {
+      reg_table_all_regs_used[warp_id][*it2] = 0;
+    }
+  }
+  
+  warp_inst_issue_num[warp_id] = 0;
 }
 
 // Print scoreboard contents
@@ -79,10 +102,13 @@ void Scoreboard::reserveRegister(unsigned wid, unsigned regnum, bool gpgpu_perfe
         m_sid, wid, regnum);
     abort();
   }
-  reg_reserved[wid][regnum] = cycles_passed;
+  reg_reserved[wid][regnum] = warp_inst_issue_num[wid];
   SHADER_DPRINTF(SCOREBOARD, "Reserved Register - warp:%d, reg: %d\n", wid,
                  regnum);
   reg_table[wid].insert(regnum);
+  reg_table_all_regs_used[wid][regnum] = 1;
+  if (reg_table_all_regs_used_list[wid].find(regnum) == reg_table_all_regs_used_list[wid].end())
+    reg_table_all_regs_used_list[wid].insert(regnum);
 }
 
 // Unmark register as write-pending
@@ -100,6 +126,7 @@ const bool Scoreboard::islongop(unsigned warp_id, unsigned regnum) {
 }
 
 void Scoreboard::reserveRegisters(const class warp_inst_t* inst, bool gpgpu_perfect_mem_data, int status) {
+  warp_inst_issue_num[inst->warp_id()]++;
   for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++) {
     if (inst->out[r] > 0) {
       reserveRegister(inst->warp_id(), inst->out[r],gpgpu_perfect_mem_data);
@@ -163,7 +190,7 @@ bool Scoreboard::checkCollision(unsigned wid, const class inst_t* inst, bool pri
   // instruction registers
   std::set<int>::iterator it2;
   std::set<unsigned>::const_iterator it;
-  
+
   for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
   {
     if (reg_table[wid].find(*it2) != reg_table[wid].end()) {
@@ -172,6 +199,138 @@ bool Scoreboard::checkCollision(unsigned wid, const class inst_t* inst, bool pri
   }
 
   return false;
+}
+
+void Scoreboard::get_closest_dependence(unsigned wid, const inst_t *inst1, bool print, int m_cluster_id, int sid, int OOO_dep,
+int num_inst_OOO, unsigned stalls_between_issues, int isOOO) {
+  std::set<int> inst_regs;
+  int closest_dependence = -1;
+  int decode_issue_distance = -1;
+  int num_cycles_decode_issue_temp = -1;
+  int num_cycles_decode_issue_ans = 0;
+  inst_t* inst = const_cast<inst_t*>(inst1);
+
+  int reg_cycle = -2;
+
+  // only check if we are not starting the function again
+  //if(warp_inst_issue_num[wid]!=0)
+  {
+    for (unsigned iii = 0; iii < inst->outcount; iii++)
+    {
+      int regnum = inst->out[iii];
+      reg_cycle = reg_reserved[wid].find(regnum)->second;
+      num_cycles_decode_issue_temp = num_cycles_decode_issue[wid].find(regnum)->second;
+
+      if (reg_table_all_regs_used[wid].find(regnum) != reg_table_all_regs_used[wid].end()) 
+      {
+        if (reg_table_all_regs_used[wid].find(regnum)->second != 0)
+        {
+          if(reg_cycle > closest_dependence && reg_reserved[wid].find(regnum) != reg_reserved[wid].end())
+          {
+            closest_dependence = reg_cycle;
+            num_cycles_decode_issue_ans = num_cycles_decode_issue_temp;
+          }
+        }
+      }
+    }
+
+    for (unsigned jjj = 0; jjj < inst->incount; jjj++)
+    {
+      int regnum = inst->in[jjj];
+      reg_cycle = reg_reserved[wid].find(regnum)->second;
+      num_cycles_decode_issue_temp = num_cycles_decode_issue[wid].find(regnum)->second;
+      if (reg_table_all_regs_used[wid].find(regnum) != reg_table_all_regs_used[wid].end()) 
+      {
+        if (reg_table_all_regs_used[wid].find(regnum)->second != 0)
+        {
+          if(reg_cycle > closest_dependence && reg_reserved[wid].find(regnum) != reg_reserved[wid].end())
+          {
+            closest_dependence = reg_cycle;
+            num_cycles_decode_issue_ans = num_cycles_decode_issue_temp;
+          }
+        }
+      }
+    }
+
+    if (inst->pred > 0)
+    {
+      int regnum = inst->pred;
+      reg_cycle = reg_reserved[wid].find(regnum)->second;
+      num_cycles_decode_issue_temp = num_cycles_decode_issue[wid].find(regnum)->second;
+      if (reg_table_all_regs_used[wid].find(regnum) != reg_table_all_regs_used[wid].end()) 
+      {
+        if (reg_table_all_regs_used[wid].find(regnum)->second != 0)
+        {
+          if(reg_cycle > closest_dependence && reg_reserved[wid].find(regnum) != reg_reserved[wid].end())
+          {
+            closest_dependence = reg_cycle;
+            num_cycles_decode_issue_ans = num_cycles_decode_issue_temp;
+          }
+        }
+      }
+    }
+
+    if (inst->ar1 > 0)
+    {
+      int regnum = inst->ar1;
+      reg_cycle = reg_reserved[wid].find(regnum)->second;
+      num_cycles_decode_issue_temp = num_cycles_decode_issue[wid].find(regnum)->second;
+      if (reg_table_all_regs_used[wid].find(regnum) != reg_table_all_regs_used[wid].end()) 
+      {
+        if (reg_table_all_regs_used[wid].find(regnum)->second != 0)
+        {
+          if(reg_cycle > closest_dependence && reg_reserved[wid].find(regnum) != reg_reserved[wid].end())
+          {
+            closest_dependence = reg_cycle;
+            num_cycles_decode_issue_ans = num_cycles_decode_issue_temp;
+          }
+        }
+      }
+    }
+
+    if (inst->ar2 > 0)
+    {
+      int regnum = inst->ar2;
+      reg_cycle = reg_reserved[wid].find(regnum)->second;
+      num_cycles_decode_issue_temp = num_cycles_decode_issue[wid].find(regnum)->second;
+      if (reg_table_all_regs_used[wid].find(regnum) != reg_table_all_regs_used[wid].end()) 
+      {
+        if (reg_table_all_regs_used[wid].find(regnum)->second != 0)
+        {
+          if(reg_cycle > closest_dependence && reg_reserved[wid].find(regnum) != reg_reserved[wid].end())
+          {
+            closest_dependence = reg_cycle;
+            num_cycles_decode_issue_ans = num_cycles_decode_issue_temp;
+          }
+        }
+      }
+    }
+  }
+
+  int closest_num = 0;
+  int num_cycles_decode_issue_final = num_cycles_decode_issue_ans;
+  if(closest_dependence!= -1)
+    closest_num = (warp_inst_issue_num[wid] + 1)  - closest_dependence;
+  else 
+    {
+      closest_num = 0;
+      num_cycles_decode_issue_final = 0;
+    }
+
+  // OOO_dep -> was inst dep on a DEB instruction?
+  // stalls_between_issues -> Stalls between in order issues
+  // num_inst_OOO -> OOO inst issued before this warp was issued
+  std::cout <<"WARP_CLOSEST_DEPENDENCE "<<wid<<" "<<m_cluster_id<<" "<<sid<<" "<<closest_num <<" "
+  <<num_cycles_decode_issue_final<<" "<<OOO_dep<<" "<<stalls_between_issues<<" "<<num_inst_OOO<<" "<<isOOO<<"\n";
+}
+
+void Scoreboard::set_num_cycles_deocode_issue(int num_cycles, const class warp_inst_t* inst)
+{
+  for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++) {
+    if (inst->out[r] > 0) {
+      num_cycles_decode_issue[inst->warp_id()][inst->out[r]] = num_cycles;
+    }
+  }
 }
 
 bool Scoreboard::pendingWrites(unsigned wid) const {
@@ -184,7 +343,7 @@ bool Scoreboard::pendingWrites(unsigned wid, bool ignore) const {
 }
 
 /* Added Functions */
-/* Check if instructions collide with an instruction in the replay queue  
+/* Check if instructions collide with an instruction in the replay queue
 *  @return
 * true if WAR or WAW hazard
 */
@@ -203,13 +362,10 @@ bool Scoreboard::checkReplayCollision(unsigned wid, const class inst_t* inst, st
   if (inst->ar2 > 0) inst_regs.insert(inst->ar2);
 
   // make list of all regs in replay list
-  for(const class inst_t* ins : replayInst) 
+  for(const class inst_t* ins : replayInst)
   {
-    //if(wid == 15)
-    //  std::cout <<"INST_OUTCOUNT_REPLAY "<<ins->outcount<<" pc "<<ins->pc<<" warp "<<wid<<"\n";
     for (unsigned iii = 0; iii < ins->outcount; iii++)
     {
-      //std::cout <<"ins "<<ins->out[iii]<<" "<<ins->outcount<<" "<<inst_replay_regs.size()<<"\n";
       inst_replay_regs.insert(ins->out[iii]);
     }
 
@@ -337,40 +493,8 @@ std::vector<int> Scoreboard::checkCollisionMem(unsigned wid, const class inst_t*
   // check for longest taking release Reg and print the corresponding reserve and release cycle with the register number
   int reserve_c = -1;
   int release_c = -1;
-  for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
-  {
-    unsigned regnum = *it2;
-    if (reg_reserved_mem[wid].count(regnum) == 0) continue;
-    int reserve = reg_reserved_mem[wid].find(regnum)->second;
-
-    if (reg_released_mem[wid].count(regnum) == 0) continue;
-    int release = reg_released_mem[wid].find(regnum)->second;
-
-    // Take latest reservation that was released
-    if (reserve <= release && release > release_c)
-    {
-      reserve_c = reserve;
-      release_c = release;
-    }
-  }
   result[1] = reserve_c;
   result[2] = release_c;
-
-  std::set<unsigned>::const_iterator it;
-
-    bool mem_data_col = false;
-  bool comp_data_col = false;
-
-  for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
-  {
-    unsigned regnum = *it2;
-    if (reg_table[wid].find(*it2) != reg_table[wid].end()) {
-      if (reg_reserved_type[wid].find(regnum)->second == 1)
-        mem_data_col = true;
-      if (reg_reserved_type[wid].find(regnum)->second == 2)
-        comp_data_col = true;
-    }
-  }
 
   for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
   {
@@ -379,9 +503,10 @@ std::vector<int> Scoreboard::checkCollisionMem(unsigned wid, const class inst_t*
       return result;
     }
   }
+
   result[0] = 0;
   return result;
-} 
+}
 
 std::vector<int> Scoreboard::checkCollisionComp(unsigned wid, const class inst_t* inst) const {
   // Get list of all input and output registers
@@ -424,7 +549,7 @@ std::vector<int> Scoreboard::checkCollisionComp(unsigned wid, const class inst_t
   }
   result[1] = reserve_c;
   result[2] = release_c;
-  
+
     bool mem_data_col = false;
   bool comp_data_col = false;
 
@@ -451,7 +576,7 @@ std::vector<int> Scoreboard::checkCollisionComp(unsigned wid, const class inst_t
 }
 
 bool Scoreboard::checkConsecutiveInstIndep(const class inst_t* inst, const class inst_t *inst1) const{
-  
+
   std::set<int> inst_regs;
   std::set<int> inst_regs1;
   int a = 0;
@@ -466,7 +591,7 @@ bool Scoreboard::checkConsecutiveInstIndep(const class inst_t* inst, const class
     inst_regs1.insert(inst1->out[iii]);
 
   for (unsigned jjj = 0; jjj < inst1->incount; jjj++)
-    inst_regs1.insert(inst1->in[jjj]);  
+    inst_regs1.insert(inst1->in[jjj]);
 
   std::set<int>::const_iterator it2;
   for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)

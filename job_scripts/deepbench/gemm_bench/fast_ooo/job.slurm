@@ -7,4 +7,4 @@
 #SBATCH --mail-user=ishitac@princeton.edu
 
 export SINGULARITYENV_LD_LIBRARY_PATH=/mylibs
-nohup singularity exec -B /scratch/gpfs/ishitac/gpgpusim-codes/accel-sim-framework/gpu-simulator/gpgpu-sim/lib/gcc-7.5.0/cuda-10010/release:/mylibs /home/ishitac/tigress/gpgpu_sim.img bash run_script.sh
+nohup singularity exec -B /scratch/gpfs/ishitac/gpgpusim-codes/accel-sim-framework/gpu-simulator/gpgpu-sim/lib/gcc-7.5.0/cuda-10010/release:/mylibs /home/ishitac/tigress/gpgpu_sim.img bash run_script.sh > out

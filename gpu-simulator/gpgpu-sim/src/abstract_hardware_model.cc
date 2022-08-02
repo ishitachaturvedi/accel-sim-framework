@@ -63,6 +63,11 @@ void warp_inst_t::issue(const active_mask_t &mask, unsigned warp_id,
   m_scheduler_id = sch_id;
 }
 
+active_mask_t warp_inst_t::get_active_mask()
+{
+  return m_warp_active_mask;
+}
+
 void warp_inst_t::issue_push_to_replay(const active_mask_t &mask, unsigned warp_id,	
                         unsigned long long cycle, int dynamic_warp_id,	
                         int sch_id) {	
@@ -72,10 +77,34 @@ void warp_inst_t::issue_push_to_replay(const active_mask_t &mask, unsigned warp_
   m_empty = false;	
   m_scheduler_id = sch_id;	
 }	
+
+void warp_inst_t::issue_push_SIMT_UPDATE_ibuffer_OOO(const active_mask_t &mask, unsigned warp_id,	
+                        unsigned long long cycle, int dynamic_warp_id,	
+                        int sch_id) {	
+  m_warp_active_mask = mask;	
+  m_warp_id = warp_id;	
+  m_cache_hit = false;	
+  m_empty = false;	
+  m_scheduler_id = sch_id;	
+}	
+
 void warp_inst_t::issue_push_from_replay(const active_mask_t &mask, unsigned warp_id,	
                         unsigned long long cycle, int dynamic_warp_id,	
                         int sch_id) {	
   m_warp_issued_mask = mask;	
+  m_uid = ++(m_config->gpgpu_ctx->warp_inst_sm_next_uid);	
+  m_warp_id = warp_id;	
+  m_dynamic_warp_id = dynamic_warp_id;	
+  issue_cycle = cycle;	
+  cycles = initiation_interval;	
+  m_cache_hit = false;	
+  m_empty = false;	
+  m_scheduler_id = sch_id;	
+}
+
+void warp_inst_t::issue_push_from_ibuffer_OOO(unsigned warp_id,	
+                        unsigned long long cycle, int dynamic_warp_id,	
+                        int sch_id) {	
   m_uid = ++(m_config->gpgpu_ctx->warp_inst_sm_next_uid);	
   m_warp_id = warp_id;	
   m_dynamic_warp_id = dynamic_warp_id;	
@@ -1003,6 +1032,13 @@ const simt_mask_t &simt_stack::get_active_mask() const {
   return m_stack.back().m_active_mask;
 }
 
+const simt_mask_t &simt_stack::get_active_mask_test() const {
+  if(m_stack.size() > 0)
+    return m_stack.back().m_active_mask;
+  else
+    return 0;
+}
+
 void simt_stack::get_pdom_stack_top_info(unsigned *pc, unsigned *rpc) const {
   assert(m_stack.size() > 0);
   *pc = m_stack.back().m_pc;
@@ -1059,16 +1095,23 @@ void simt_stack::print_checkpoint(FILE *fout) const {
 
 void simt_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
                         address_type recvg_pc, op_type next_inst_op,
-                        unsigned next_inst_size, address_type next_inst_pc, int warpId) {
+                        unsigned next_inst_size, address_type next_inst_pc, int warpId,int sch_id,int m_cluster_id,int sid) {
   assert(m_stack.size() > 0);
+
+  int final_pc = 0;
 
   assert(next_pc.size() == m_warp_size);
 
   simt_mask_t top_active_mask = m_stack.back().m_active_mask;
+
+  simt_mask_t tmp_active_mask_check;
+  tmp_active_mask_check = top_active_mask;
   address_type top_recvg_pc = m_stack.back().m_recvg_pc;
   address_type top_pc =
       m_stack.back().m_pc;  // the pc of the instruction just executed
+  final_pc = m_stack.back().m_pc;
   stack_entry_type top_type = m_stack.back().m_type;
+
   assert(top_pc == next_inst_pc);
   assert(top_active_mask.any());
 
@@ -1135,6 +1178,7 @@ void simt_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
       simt_stack_entry new_stack_entry;
       new_stack_entry.m_pc = tmp_next_pc;
       new_stack_entry.m_active_mask = tmp_active_mask;
+      tmp_active_mask_check = tmp_active_mask;
       new_stack_entry.m_branch_div_cycle =
           m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
       new_stack_entry.m_type = STACK_ENTRY_TYPE_CALL;
@@ -1148,6 +1192,8 @@ void simt_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
       assert(m_stack.size() > 0);
       m_stack.back().m_pc = tmp_next_pc;  // set the PC of the stack top entry
                                           // to return PC from  the call stack;
+
+      final_pc = m_stack.back().m_pc;
       // Check if the New top of the stack is reconverging
       if (tmp_next_pc == m_stack.back().m_recvg_pc &&
           m_stack.back().m_type != STACK_ENTRY_TYPE_CALL) {
@@ -1172,6 +1218,7 @@ void simt_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
       new_recvg_pc = recvg_pc;
       if (new_recvg_pc != top_recvg_pc) {
         m_stack.back().m_pc = new_recvg_pc;
+        final_pc = m_stack.back().m_pc;
         m_stack.back().m_branch_div_cycle =
             m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
 
@@ -1184,7 +1231,9 @@ void simt_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
 
     // update the current top of pdom stack
     m_stack.back().m_pc = tmp_next_pc;
+    final_pc = m_stack.back().m_pc;
     m_stack.back().m_active_mask = tmp_active_mask;
+    tmp_active_mask_check = tmp_active_mask;
     if (warp_diverged) {
       m_stack.back().m_calldepth = 0;
       m_stack.back().m_recvg_pc = new_recvg_pc;
@@ -1241,6 +1290,16 @@ bool core_t::isSyncInstExec(const warp_inst_t *inst, int warp_num) {
   return m_thread[tid]->isSyncInst(inst, 0);	
 }
 
+bool core_t::isSyncInstExecNonMemory(const warp_inst_t *inst, int warp_num) {	
+  unsigned tid = m_warp_size * warp_num;	
+  return m_thread[tid]->isSyncInstNonMemory(inst, 0);	
+}
+
+bool core_t::isSyncInstExecMemory(const warp_inst_t *inst, int warp_num) {	
+  unsigned tid = m_warp_size * warp_num;	
+  return m_thread[tid]->isSyncInstMemory(inst, 0);	
+}
+
 bool core_t::ptx_thread_done(unsigned hw_thread_id) const {
   return ((m_thread[hw_thread_id] == NULL) ||
           m_thread[hw_thread_id]->is_done());
@@ -1250,7 +1309,7 @@ bool core_t::ptx_thread_done_check(unsigned hw_thread_id) const {
   std::cout << (m_thread[hw_thread_id] == NULL) << " "<< m_thread[hw_thread_id]->is_done();
 }
 
-void core_t::updateSIMTStack(unsigned warpId, warp_inst_t *inst) {
+void core_t::updateSIMTStack(unsigned warpId, warp_inst_t *inst,int sch_id,int m_cluster_id,int sid) {
   simt_mask_t thread_done;
   addr_vector_t next_pc;
   unsigned wtid = warpId * m_warp_size;
@@ -1265,7 +1324,7 @@ void core_t::updateSIMTStack(unsigned warpId, warp_inst_t *inst) {
     }
   }
   m_simt_stack[warpId]->update(thread_done, next_pc, inst->reconvergence_pc,
-                               inst->op, inst->isize, inst->pc, warpId);
+                               inst->op, inst->isize, inst->pc, warpId,sch_id,m_cluster_id,sid);
 }
 
 //! Get the warp to be executed using the data taken form the SIMT stack

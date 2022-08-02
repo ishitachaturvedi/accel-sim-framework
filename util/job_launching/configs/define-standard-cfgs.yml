@@ -45,6 +45,20 @@ QV100_old:
 GTX480:
     base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM2_GTX480/gpgpusim.config"
 
+# Turnig FAST configs 
+LRR_IN:
+    base_file: "$GPGPUSIM_ROOT/configs/FAST-configs/gpgpusim.configlrr_in"
+LRR_OOO:
+    base_file: "$GPGPUSIM_ROOT/configs/FAST-configs/gpgpusim.configlrr_ooo"
+FAST_IN:
+    base_file: "$GPGPUSIM_ROOT/configs/FAST-configs/gpgpusim.configfast_in"
+FAST_OOO:
+    base_file: "$GPGPUSIM_ROOT/configs/FAST-configs/gpgpusim.configfast_ooo"
+GTO_IN:
+    base_file: "$GPGPUSIM_ROOT/configs/FAST-configs/gpgpusim.configgto_in"
+GTO_OOO:
+    base_file: "$GPGPUSIM_ROOT/configs/FAST-configs/gpgpusim.configgto_ooo"
+
 # To keep your configurations straight - we recommend specifying
 # If you are using SASS or PTX in the config:
 #   For example: QV100-SASS or QV100-PTX.

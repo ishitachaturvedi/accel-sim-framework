@@ -1768,12 +1768,39 @@ bool ptx_thread_info::isSyncInst(const warp_inst_t *inst, unsigned lane_id)
   addr_t pc = inst->pc;
   const ptx_instruction *pI = m_func_info->get_instruction(pc);	
   int inst_opcode = pI->get_opcode();	
+  //if(inst->get_warp_id() == 0
   //int inst_opcode = opcode_tracer;
   return (inst_opcode == BAR_OP|| inst_opcode == CALL_OP || inst_opcode == CALLP_OP || inst_opcode == EXIT_OP	
-        || inst_opcode == MEMBAR_OP || inst_opcode == RET_OP || inst_opcode == RETP_OP || inst_opcode == TRAP_OP ||inst_opcode == VOTE_OP	
+        || inst_opcode == RET_OP || inst_opcode == RETP_OP || inst_opcode == TRAP_OP ||inst_opcode == VOTE_OP	
         || inst_opcode == ACTIVEMASK_OP || inst_opcode == BREAK_OP || inst_opcode == BREAKADDR_OP	
-        || inst_opcode == ATOM_OP	 || inst_opcode == EXIT_OPS
+        || inst_opcode == EXIT_OPS || inst_opcode == MEMBAR_OP || inst_opcode == ATOM_OP
         );	
+}
+
+
+bool ptx_thread_info::isSyncInstNonMemory(const warp_inst_t *inst, unsigned lane_id)	
+{	
+  addr_t pc = inst->pc;
+  const ptx_instruction *pI = m_func_info->get_instruction(pc);	
+  int inst_opcode = pI->get_opcode();	
+  //if(inst->get_warp_id() == 0
+  //int inst_opcode = opcode_tracer;
+  return (inst_opcode == BAR_OP|| inst_opcode == CALL_OP || inst_opcode == CALLP_OP || inst_opcode == EXIT_OP	
+        || inst_opcode == RET_OP || inst_opcode == RETP_OP || inst_opcode == TRAP_OP ||inst_opcode == VOTE_OP	
+        || inst_opcode == ACTIVEMASK_OP || inst_opcode == BREAK_OP || inst_opcode == BREAKADDR_OP	
+        || inst_opcode == EXIT_OPS
+        );	
+}
+
+
+bool ptx_thread_info::isSyncInstMemory(const warp_inst_t *inst, unsigned lane_id)
+{
+  addr_t pc = inst->pc;
+  const ptx_instruction *pI = m_func_info->get_instruction(pc);	
+  int inst_opcode = pI->get_opcode();
+  return ( inst_opcode == MEMBAR_OP	
+        || inst_opcode == ATOM_OP
+        );
 }
 
 void ptx_thread_info::ptx_exec_inst(warp_inst_t &inst, unsigned lane_id) {
@@ -2720,7 +2747,7 @@ void functionalCoreSim::executeWarp(unsigned i, bool &allAtBarrier,
     if (inst.isatomic()) inst.do_atomic(true);
     if (inst.op == BARRIER_OP || inst.op == MEMORY_BARRIER_OP)
       m_warpAtBarrier[i] = true;
-    updateSIMTStack(i, &inst);
+    updateSIMTStack(i, &inst, -1,-1,-1);
   }
   if (m_liveThreadCount[i] > 0) someOneLive = true;
   if (!m_warpAtBarrier[i] && m_liveThreadCount[i] > 0) allAtBarrier = false;

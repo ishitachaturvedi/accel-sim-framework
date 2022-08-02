@@ -608,7 +608,7 @@ partiton_level_parallism_util =       7.1574
 partiton_level_parallism_util_total  =       7.1574
 L2_BW  =     107.7672 GB/Sec
 L2_BW_total  =     107.7672 GB/Sec
-gpu_total_sim_rate=323584
+gpu_total_sim_rate=258867
 
 ========= Core cache stats =========
 L1I_cache:
@@ -2210,10 +2210,10 @@ Reply_Network_out_buffer_avg_util =       0.0520
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 20 sec (20 sec)
-gpgpu_simulation_rate = 323584 (inst/sec)
-gpgpu_simulation_rate = 686 (cycle/sec)
-gpgpu_silicon_slowdown = 2776967x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 25 sec (25 sec)
+gpgpu_simulation_rate = 258867 (inst/sec)
+gpgpu_simulation_rate = 548 (cycle/sec)
+gpgpu_silicon_slowdown = 3476277x
 launching memcpy command : MemcpyHtoD,0x00007f709174c600,68
 launching memcpy command : MemcpyHtoD,0x00007f709174c800,278596
 launching memcpy command : MemcpyHtoD,0x00007f7091704400,278596
@@ -2545,7 +2545,7 @@ partiton_level_parallism_util =      15.8350
 partiton_level_parallism_util_total  =      11.0163
 L2_BW  =     307.3139 GB/Sec
 L2_BW_total  =     180.5606 GB/Sec
-gpu_total_sim_rate=273237
+gpu_total_sim_rate=238207
 
 ========= Core cache stats =========
 L1I_cache:
@@ -4147,10 +4147,10 @@ Reply_Network_out_buffer_avg_util =       0.0871
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 34 sec (34 sec)
-gpgpu_simulation_rate = 273237 (inst/sec)
-gpgpu_simulation_rate = 635 (cycle/sec)
-gpgpu_silicon_slowdown = 3000000x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 39 sec (39 sec)
+gpgpu_simulation_rate = 238207 (inst/sec)
+gpgpu_simulation_rate = 553 (cycle/sec)
+gpgpu_silicon_slowdown = 3444846x
 TOTAL CYCLES TAKEN 21604
 tot_inst_exec 370711
 ICNT_TO_MEM_count 0 ICNT_TO_MEM_cycles 0
@@ -4304,8 +4304,8 @@ L1T_total_cache_misses 0
 NONE L1T_total_cache_miss_rate 0
 L1T_total_cache_pending_hits 0
 L1T_total_cache_reservation_fails 0
-comp_inst_finish_time -1598938578
-mem_inst_finish_time -211745681
+comp_inst_finish_time -1598757009
+mem_inst_finish_time -211721099
 ibuffer_flush_count1 0
 ibuffer_flush_count2 0
 ibuffer_flush_count3 0

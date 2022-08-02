@@ -97,6 +97,42 @@ tr1_hash_map<new_addr_type, unsigned> address_random_interleaving;
 
 #include "mem_latency_stat.h"
 
+typedef enum {
+    active_warp = 0,
+    total_stall_count,
+    mem_str,
+    mem_data,
+    synco,
+    comp_str,
+    comp_data,
+    control,
+    ibufferw,
+    imisspendingw,
+    pendingWritew,
+    idlew,
+    others,
+    reserve_mem,
+    release_mem,
+    reserve_comp,
+    release_comp,
+    OP_TYPE, //check inst type -> Look at Struct_stall_types
+    block_id
+} StallReasons;
+
+typedef enum {
+    mem_str_consolidate,
+    mem_data_consolidate,
+    synco_consolidate,
+    comp_str_consolidate,
+    comp_data_consolidate,
+    control_consolidate,
+    ibufferw_consolidate,
+    imisspendingw_consolidate,
+    pendingWritew_consolidate,
+    idlew_consolidate,
+    others_consolidate
+} StallReasons_consolidate;
+
 
 void power_config::reg_options(class OptionParser *opp) {
   option_parser_register(opp, "-accelwattch_xml_file", OPT_CSTR,
@@ -1123,11 +1159,36 @@ void gpgpu_sim::init() {
   comp_data_stall_kernel = 0;
   ibuffer_stall_kernel = 0;
   comp_str_stall_kernel = 0;
+  control_hazard_count_kernel = 0;
   mem_str_stall_kernel = 0;
   other_stall1_kernel = 0;
   other_stall2_kernel = 0;
   other_stall3_kernel = 0;
   ooo_opp_kernel = 0;
+  cannot_issue_warp_DEB_dep_kernel = 0;
+
+  ICACHE_EMPTY_Kernel = 0;
+  L1I_miss_kernel = 0;
+  L1I_hit_kernel = 0;
+  ibuffer_empty_kernel = 0;
+  gen_mem_icache_kernel = 0;
+
+  ICNT_TO_MEM_count_kernel = 0;
+  ICNT_TO_MEM_cycles_kernel = 0;
+  ROP_DELAY_count_kernel = 0;
+  ROP_DELAY_cycle_kernel = 0;
+  ICNT_TO_L2_QUEUE_count_kernel = 0;
+  ICNT_TO_L2_QUEUE_cycles_kernel = 0;
+  DRAM_LATENCY_QUEUE_count_kernel = 0;
+  DRAM_LATENCY_QUEUE_cycle_kernel = 0;
+  DRAM_TO_L2_QUEUE_count_kernel = 0;
+  DRAM_TO_L2_QUEUE_cycle_kernel = 0;
+  DRAM_L2_FILL_QUEUE_count_kernel = 0;
+  DRAM_L2_FILL_QUEUE_cycle_kernel = 0;
+  L2_TO_ICNT_count_kernel = 0;
+  L2_TO_ICNT_cycle_kernel = 0;
+  ICNT_TO_SHADER_count_kernel = 0;
+  ICNT_TO_SHADER_cycles_kernel = 0;
 
   gpu_sim_cycle = 0;
   gpu_sim_insn = 0;
@@ -1189,11 +1250,36 @@ void gpgpu_sim::update_stats() {
   comp_data_stall_kernel = 0;
   ibuffer_stall_kernel = 0;
   comp_str_stall_kernel = 0;
+  control_hazard_count_kernel = 0;
   mem_str_stall_kernel = 0;
   other_stall1_kernel = 0;
   other_stall2_kernel = 0;
   other_stall3_kernel = 0;
   ooo_opp_kernel = 0;
+  cannot_issue_warp_DEB_dep_kernel = 0;
+
+  ICACHE_EMPTY_Kernel = 0;
+  L1I_miss_kernel = 0;
+  L1I_hit_kernel = 0;
+  ibuffer_empty_kernel = 0;
+  gen_mem_icache_kernel = 0;
+
+  ICNT_TO_MEM_count_kernel = 0;
+  ICNT_TO_MEM_cycles_kernel = 0;
+  ROP_DELAY_count_kernel = 0;
+  ROP_DELAY_cycle_kernel = 0;
+  ICNT_TO_L2_QUEUE_count_kernel = 0;
+  ICNT_TO_L2_QUEUE_cycles_kernel = 0;
+  DRAM_LATENCY_QUEUE_count_kernel = 0;
+  DRAM_LATENCY_QUEUE_cycle_kernel = 0;
+  DRAM_TO_L2_QUEUE_count_kernel = 0;
+  DRAM_TO_L2_QUEUE_cycle_kernel = 0;
+  DRAM_L2_FILL_QUEUE_count_kernel = 0;
+  DRAM_L2_FILL_QUEUE_cycle_kernel = 0;
+  L2_TO_ICNT_count_kernel = 0;
+  L2_TO_ICNT_cycle_kernel = 0;
+  ICNT_TO_SHADER_count_kernel = 0;
+  ICNT_TO_SHADER_cycles_kernel = 0;
 
   gpu_sim_cycle = 0;
   partiton_reqs_in_parallel = 0;
@@ -1403,14 +1489,37 @@ void gpgpu_sim::gpu_print_stat() {
   fprintf(statfout, "%s", kernel_info_str.c_str());
 
   printf("mem_data_stall_kernel = %d\n",mem_data_stall_kernel);
+  printf("cannot_issue_warp_DEB_dep_kernel = %ld\n",cannot_issue_warp_DEB_dep_kernel);
   printf("comp_data_stall_kernel = %d\n",comp_data_stall_kernel);
   printf("ibuffer_stall_kernel = %d\n",ibuffer_stall_kernel);
   printf("comp_str_stall_kernel = %d\n",comp_str_stall_kernel);
+  printf("control_hazard_count_kernel = %d\n",control_hazard_count_kernel);
   printf("mem_str_stall_kernel = %d\n",mem_str_stall_kernel);
   printf("other_stall1_kernel = %d\n",other_stall1_kernel);
   printf("other_stall2_kernel = %d\n",other_stall2_kernel);
   printf("other_stall3_kernel = %d\n",other_stall3_kernel);  
   printf("ooo_opp_kernel = %d\n",ooo_opp_kernel);
+  printf("ICACHE_EMPTY_Kernel = %d\n",ICACHE_EMPTY_Kernel);
+  printf("L1I_miss_kernel = %d\n",L1I_miss_kernel);
+  printf("L1I_hit_kernel = %d\n",L1I_hit_kernel);
+  printf("ibuffer_empty_kernel = %d\n",ibuffer_empty_kernel);
+  printf("gen_mem_icache_kernel = %d\n",gen_mem_icache_kernel);
+  printf("ICNT_TO_MEM_count_kernel = %d\n",ICNT_TO_MEM_count_kernel);
+  printf("ICNT_TO_MEM_cycles_kernel = %d\n",ICNT_TO_MEM_cycles_kernel);
+  printf("ROP_DELAY_count_kernel = %d\n",ROP_DELAY_count_kernel);
+  printf("ROP_DELAY_cycle_kernel = %d\n",ROP_DELAY_cycle_kernel);
+  printf("ICNT_TO_L2_QUEUE_count_kernel = %d\n",ICNT_TO_L2_QUEUE_count_kernel);
+  printf("ICNT_TO_L2_QUEUE_cycles_kernel = %d\n",ICNT_TO_L2_QUEUE_cycles_kernel);
+  printf("DRAM_LATENCY_QUEUE_count_kernel = %d\n",DRAM_LATENCY_QUEUE_count_kernel);
+  printf("DRAM_LATENCY_QUEUE_cycle_kernel = %d\n",DRAM_LATENCY_QUEUE_cycle_kernel);
+  printf("DRAM_TO_L2_QUEUE_count_kernel = %d\n",DRAM_TO_L2_QUEUE_count_kernel);
+  printf("DRAM_TO_L2_QUEUE_cycle_kernel = %d\n",DRAM_TO_L2_QUEUE_cycle_kernel);
+  printf("DRAM_L2_FILL_QUEUE_count_kernel = %d\n",DRAM_L2_FILL_QUEUE_count_kernel);
+  printf("DRAM_L2_FILL_QUEUE_cycle_kernel = %d\n",DRAM_L2_FILL_QUEUE_cycle_kernel);
+  printf("L2_TO_ICNT_count_kernel = %d\n",L2_TO_ICNT_count_kernel);
+  printf("L2_TO_ICNT_cycle_kernel = %d\n",L2_TO_ICNT_cycle_kernel);
+  printf("ICNT_TO_SHADER_count_kernel = %d\n",ICNT_TO_SHADER_count_kernel);
+  printf("ICNT_TO_SHADER_cycles_kernel = %d\n",ICNT_TO_SHADER_cycles_kernel);
 
   printf("gpu_sim_cycle = %lld\n", gpu_sim_cycle);
   printf("gpu_sim_insn = %lld\n", gpu_sim_insn);
@@ -1776,6 +1885,7 @@ unsigned exec_shader_core_ctx::sim_init_thread(
 }
 
 void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
+
   if (!m_config->gpgpu_concurrent_kernel_sm)
     set_max_cta(kernel);
   else
@@ -1963,6 +2073,11 @@ void gpgpu_sim::cycle() {
           {	
             cout <<"ICNT_PUSH_FROM_MEM_ENTER "<<mf->get_inst().pc<<" "<<mf->get_inst().warp_id()<<" "<<mf->get_inst().get_sid()<<" "<<cycles_passed<<" "<<going_from_shader_to_mem<<"\n";	
           }
+          if(mf)
+          {
+            ICNT_TO_SHADER_count_kernel = ICNT_TO_SHADER_count_kernel + 1;
+            ICNT_TO_SHADER_cycles_kernel = ICNT_TO_SHADER_cycles_kernel + cycles_passed - mf->get_status_change_cycle();;
+          }
           mf->set_status(IN_ICNT_TO_SHADER, gpu_sim_cycle + gpu_tot_sim_cycle);
           ::icnt_push(m_shader_config->mem2device(i), mf->get_tpc(), mf,
                       response_size);
@@ -2028,6 +2143,17 @@ void gpgpu_sim::cycle() {
         mem_fetch *mf = (mem_fetch *)icnt_pop(m_shader_config->mem2device(i));
         m_memory_sub_partition[i]->push(mf, gpu_sim_cycle + gpu_tot_sim_cycle);
         if (mf) partiton_reqs_in_parallel_per_cycle++;
+        if(mf)
+        {
+          mf->set_cycle_issued(cycles_passed);
+          going_from_shader_to_mem--;
+          ICNT_TO_MEM_count = ICNT_TO_MEM_count + 1;
+          ICNT_TO_MEM_count_kernel = ICNT_TO_MEM_count_kernel + 1;
+          ICNT_TO_MEM_cycles = gpu_sim_cycle + gpu_tot_sim_cycle - mf->get_status_change_cycle() + ICNT_TO_MEM_cycles;
+          ICNT_TO_MEM_cycles_kernel = gpu_sim_cycle + gpu_tot_sim_cycle - mf->get_status_change_cycle() + ICNT_TO_MEM_cycles_kernel;
+          if(print_stall_data)
+            cout <<"ICNT_PUSH_TO_MEM_EXIT "<<mf->get_inst().pc<<" "<<mf->get_inst().warp_id()<<" "<<mf->get_inst().get_sid()<<" "<<gpu_sim_cycle + gpu_tot_sim_cycle - mf->get_status_change_cycle()<<" "<<going_from_shader_to_mem<<"\n";
+        }
       }
       m_memory_sub_partition[i]->cache_cycle(gpu_sim_cycle + gpu_tot_sim_cycle);
       m_memory_sub_partition[i]->accumulate_L2cache_stats(
@@ -2077,60 +2203,119 @@ void gpgpu_sim::cycle() {
     }
 
     /*------Printing colllected stats---------*/	
-    max_active=actw+1;	
-    actw = 0;	
-    if(max_warps_act<max_active)	
-	    max_warps_act=max_active;	
-    if(m_shader_config->gpgpu_print_stall_data)	
-    {	
-      cout<<"CYCLE "<<gpu_sim_cycle<<" "<<cycles_passed<<"\n";	
-      cout<<"max shader "<<max_sid<<"\n";	
-    }	
-    for(int k=0;k<max_sid+1;k++)	
-    {	
-      if(m_shader_config->gpgpu_print_stall_data)	
-      {	
-        cout<<"SID "<<k<<"\n";	
-        cout<<"Active ";	
-        for(int i=0;i<max_active;i++)	
-        {	
-          cout<<act_warp[k][i]<<" ";	
-        }	
-        cout << "\n";	
-      }	
-      for(int s=0; s<num_of_schedulers; s++)	
-      {	
-        if(m_shader_config->gpgpu_print_stall_data)	
-        {	
-          cout<<"SCHEDULER " << s << "\n";	
-          cout << "Struct avail ";	
-          for (int i = 0; i < 8; i++)	
-          {	
-            cout << str_status[k][s][i] <<" ";	
-          }	
-        }	
-        if(m_shader_config->gpgpu_print_stall_data)	
-          cout << "\n";	
-        for(int i=0;i<max_active;i++)	
-        {	
-          //if (act_warp[k][i] == (s+1))	
-          {	
-            if(m_shader_config->gpgpu_print_stall_data)	
-              cout<<"warp "<<i<<" ";  //Ishita	
-            for(int j=0;j<numstall;j++)	
-            {	
-              if(m_shader_config->gpgpu_print_stall_data)	
-                cout<<stallData[k][i][j]<< " ";	
-              stallData[k][i][j]=0;	
-            }	
-            if(m_shader_config->gpgpu_print_stall_data)	
-              cout<<"\n";	
-          }	
-        }	
-      }	
-      if(m_shader_config->gpgpu_print_stall_data)  //Ishita	
-        cout<<"****************\n";	
-    }
+    // max_active=actw+1;	
+    // actw = 0;	
+    // if(max_warps_act<max_active)	
+	  //   max_warps_act=max_active;	
+    // //if(m_shader_config->gpgpu_print_stall_data)	
+    // {	
+    //   cout<<"CYCLE "<<gpu_sim_cycle<<" "<<cycles_passed<<" ";	
+    //   cout<<"max shader "<<m_shader_config->n_simt_clusters<<"\n";	
+    // }	
+    // // pre-process in code and then dump
+    // //for(int k=0;k<m_shader_config->n_simt_clusters;k++)
+    // // Looking at 1 SM to reduce scope of problem
+    // for(int k=0;k<m_shader_config->n_simt_clusters;k++)	
+    // {	
+    //   for(int sched = 0; sched<4;sched++)
+    //   //for(int sched = 0; sched<1;sched++)
+    //   {
+    //     // only do if no issue
+    //     bool something_active = 0;
+    //     if(issued_warp[k][sched]==0)
+    //     {
+    //       for(int i=0; i<20; i++)
+    //         stall_consolidated[i] = 0;
+    //       for(int i=0;i<(64/4);i++)
+    //       //for(int i=0;i<1;i++)
+    //       {
+    //         if(stallData[k][i*4+sched][active_warp] == 1)
+    //         {
+    //           something_active = 1;
+    //           if(stallData[k][i*4+sched][total_stall_count] == 1)
+    //           {
+    //             for(int j=0;j<11;j++)
+    //             {
+
+    //               if(stallData[k][i*4+sched][j+2] == 1)
+    //                 stall_consolidated[j] = 1;
+    //             }
+    //           }
+    //         }
+    //         stallData[k][i*4+sched][active_warp] = 0;
+    //       }
+    //       if(something_active)
+    //       {
+    //         cout <<"STALLED_SM "<<k<<" STALLED_SCHED "<<sched<<" STALL_CAUSE ";
+    //         for(int j=0;j<11;j++)
+    //         {
+    //           cout <<stall_consolidated[j]<<" ";
+    //           stall_consolidated[j] = 0;
+    //         }
+    //         cout <<"\n";
+    //       }
+    //     }
+    //     if(issued_warp[k][sched]==1)
+    //     {
+    //       cout <<"RUNNING_SM "<<k<<" RUNNING_SCHED "<<sched<<"\n";
+    //     }
+    //     issued_warp[k][sched]=0;
+    //   }
+    //   for(int i=0;i<(64/4);i++)
+    //   {
+    //     for(int j=0;j<numstall;j++)
+    //       stallData[k][i][j] = 0;
+    //   }
+    // }
+    // cout<<"****************\n";	
+
+
+    // dump all data and process later with a python script
+    // for(int k=0;k<m_shader_config->n_simt_clusters;k++)	
+    // {	
+    //   if(m_shader_config->gpgpu_print_stall_data)	
+    //   {	
+    //     cout<<"SID "<<k<<"\n";	
+    //     cout<<"Active ";	
+    //     for(int i=0;i<max_active;i++)	
+    //     {	
+    //       cout<<act_warp[k][i]<<" ";	
+    //     }	
+    //     cout << "\n";	
+    //   }	
+    //   for(int s=0; s<num_of_schedulers; s++)	
+    //   {	
+    //     if(m_shader_config->gpgpu_print_stall_data)	
+    //     {	
+    //       cout<<"SCHEDULER " << s << " issued "<<issued_warp[k][s]<<"\n";	
+    //       cout << "Struct avail ";	
+    //       for (int i = 0; i < 8; i++)	
+    //       {	
+    //         cout << str_status[k][s][i] <<" ";	
+    //       }	
+    //     }	
+    //     if(m_shader_config->gpgpu_print_stall_data)	
+    //       cout << "\n";	
+    //     for(int i=0;i<max_active;i++)	
+    //     {	
+    //       if (act_warp[k][i] == (s+1))	
+    //       {	
+    //         if(m_shader_config->gpgpu_print_stall_data)	
+    //           cout<<"warp "<<i<<" ";  //Ishita	
+    //         for(int j=0;j<numstall;j++)	
+    //         {	
+    //           if(m_shader_config->gpgpu_print_stall_data)	
+    //             cout<<stallData[k][i][j]<< " ";	
+    //           stallData[k][i][j]=0;	
+    //         }	
+    //         if(m_shader_config->gpgpu_print_stall_data)	
+    //           cout<<"\n";	
+    //       }	
+    //     }	
+    //   }	
+    //   if(m_shader_config->gpgpu_print_stall_data)  //Ishita	
+    //     cout<<"****************\n";	
+    // }
 
     gpu_sim_cycle++;
     cycles_passed++;	

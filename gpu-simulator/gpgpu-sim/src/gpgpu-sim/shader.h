@@ -44,6 +44,7 @@
 #include <utility>
 #include <vector>
 #include <memory>
+#include <iostream>
 
 //#include "../cuda-sim/ptx.tab.h"
 
@@ -110,12 +111,16 @@ class shd_warp_t {
       : m_shader(shader), m_warp_size(warp_size) {
     m_stores_outstanding = 0;
     m_inst_in_pipeline = 0;
+    warp_inst_retired = 0;
+    num_inst_exec = 0;
+    
     reset();
   }
   void reset() {
     assert(m_stores_outstanding == 0);
     assert(m_inst_in_pipeline == 0);
     m_imiss_pending = false;
+    num_inst_exec_warp = 0;
     m_warp_id = (unsigned)-1;
     m_dynamic_warp_id = (unsigned)-1;
     n_completed = m_warp_size;
@@ -127,12 +132,35 @@ class shd_warp_t {
 
     replay_m_next = 0;	
     replay_m_fill_next = 0;	
+    ibuffer_m_fill_next_streaming = 0;
     replay_m_next_mem = 0;	
+    ibuffer_m_next_streaming = 0;
     replay_m_fill_next_mem = 0;
+    replay_buffer_head = 0;
+
+    replay_buffer_tail = 0;
+    replay_buffer_store_inst = 0;
+    replay_buffer_memory_inst = 0;
+    ib_replay_buffer_tail_DEB_OOO = 0;
+
+    ibuffer_tail = 0;
+    ibuffer_tail_full_OOO = 0;
+    ibuffer_store_inst = 0;
+    ibuffer_memory_inst = 0;
+    ibuffer_control_inst = 0;
+    ibuffer_inst_number = 0;
 
     // Jin: cdp support
     m_cdp_latency = 0;
     m_cdp_dummy = false;
+
+    num_inst_exec = 0;
+    num_warp_inst = 0;
+    warp_inst_retired = 0;
+    stalls_between_issues = 0;
+    stalled_on_replay = -1;
+    warp_stuck_replay = -1;
+    num_inst_OOO = 0;
   }
   void init(address_type start_pc, unsigned cta_id, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active,
@@ -150,6 +178,36 @@ class shd_warp_t {
     // Jin: cdp support
     m_cdp_latency = 0;
     m_cdp_dummy = false;
+    num_inst_exec = 0;
+    num_warp_inst = 0;
+    num_inst_exec_warp = 0;
+
+    replay_m_next = 0;	
+    replay_m_fill_next = 0;	
+    ibuffer_m_fill_next_streaming = 0;
+    replay_m_next_mem = 0;	
+    ibuffer_m_next_streaming = 0;
+    replay_m_fill_next_mem = 0;
+    last_pc_decoded_streaming = start_pc;
+    last_pc_decoded_streaming_test = start_pc;
+    warp_inst_retired = 0;
+    replay_buffer_head = 0;
+
+    replay_buffer_tail = 0;
+    replay_buffer_store_inst = 0;
+    replay_buffer_memory_inst = 0;
+    ib_replay_buffer_tail_DEB_OOO = 0;
+
+    ibuffer_tail = 0;
+    ibuffer_tail_full_OOO = 0;
+    ibuffer_store_inst = 0;
+    ibuffer_memory_inst = 0;
+    ibuffer_control_inst = 0;
+    ibuffer_inst_number = 0;
+    stalls_between_issues = 0;
+    stalled_on_replay = -1;
+    warp_stuck_replay = -1;
+    num_inst_OOO = 0;
   }
 
   bool functional_done() const;
@@ -160,6 +218,7 @@ class shd_warp_t {
   bool waiting_fence();	
   bool waiting_idle();
   bool hardware_done() const;
+  bool hardware_done_print() const;
 
   bool done_exit() const { return m_done_exit; }
   void set_done_exit() { m_done_exit = true; }
@@ -186,7 +245,23 @@ class shd_warp_t {
   void clear_membar() { m_membar = false; }
   bool get_membar() const { return m_membar; }
   virtual address_type get_pc() const { return m_next_pc; }
-  void set_next_pc(address_type pc) { m_next_pc = pc; }
+  void set_next_pc(address_type pc) 
+  { 
+    m_next_pc = pc; 
+    //last_pc_decoded_streaming = pc;
+    //last_pc_decoded_streaming_test = pc;
+    //std::cout <<"SET_NEXT_PC_CALLED "<<last_pc_decoded_streaming<<"\n";
+  }
+
+  void set_streaming_pc_hazard(address_type pc, int warp_id, const int &fetch_warp, const bool &valid)
+  {
+    last_pc_decoded_streaming = pc;
+    last_pc_decoded_streaming_test = pc;
+    // if(fetch_warp == warp_id)
+    // {
+    //   valid = false;
+    // }
+  }
 
   void store_info_of_last_inst_at_barrier(const warp_inst_t *pI) {
     m_inst_at_barrier = *pI;
@@ -201,6 +276,7 @@ class shd_warp_t {
     m_ibuffer[slot].m_valid = true;
     m_next = 0;
   }
+
   bool ibuffer_empty() const {
     for (unsigned i = 0; i < IBUFFER_SIZE; i++)
       if (m_ibuffer[i].m_valid) return false;
@@ -214,6 +290,7 @@ class shd_warp_t {
     }
   }
   const warp_inst_t *ibuffer_next_inst() { return m_ibuffer[m_next].m_inst; }
+  
   bool ibuffer_next_valid() { return m_ibuffer[m_next].m_valid; }
   void ibuffer_free() {
     m_ibuffer[m_next].m_inst = NULL;
@@ -223,9 +300,24 @@ class shd_warp_t {
   {
     return m_ibuffer[m_next].m_inst->pc;
   }
+
+  void set_ibuffer_pushed(int cycle)
+  {
+    m_ibuffer[m_next].m_pushed_in = cycle;
+  }
+
+  int get_ibuffer_pushed()
+  {
+    return m_ibuffer[m_next].m_pushed_in;
+  }
+
+
   void ibuffer_step() { m_next = (m_next + 1) % IBUFFER_SIZE; }
 
   bool* ibuffer_inst_addr(int slot) { return &m_ibuffer[slot].m_valid;}
+
+  void increase_exec_inst() {num_inst_exec = num_inst_exec + 1;}
+  long long return_num_exec_inst() {return num_inst_exec;}
 
 
   // additional ibuffer functions 		
@@ -239,7 +331,8 @@ class shd_warp_t {
   const warp_inst_t *ibuffer_check_indep_inst() {	
     int next = (m_next + 1) % IBUFFER_SIZE;	
     return m_ibuffer[next].m_inst;	
-  }	
+  }
+
   void ibuffer_contents()	
   {	
     std::cout <<"PRINTING_IBUFFER\n";
@@ -304,11 +397,25 @@ class shd_warp_t {
         counter = counter + 1;	
     return counter;	
   }	
+
+  int replay_buffer_tot_size() const {
+    return REPLAY_BUFFER_SIZE;
+  }
+
+  int replay_buffer_space() const {
+    int counter = 0;	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
+      if (!replay_buffer[i].m_valid) 	
+        counter = counter + 1;	
+    return counter;	
+  }
+
   bool replay_buffer_empty() const {	
     for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
       if (replay_buffer[i].m_valid) return false;	
     return true;	
   }	
+
   void replay_buffer_flush() {	
     for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++) {	
       if (replay_buffer[i].m_valid) dec_inst_in_pipeline();	
@@ -336,9 +443,9 @@ class shd_warp_t {
   std::vector<const warp_inst_t *> get_Replay_buffer_Inst()  {	
     std::vector<const warp_inst_t *> replayInst;	
     for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++) {	
-      if (replay_buffer[i].m_valid)	
+      if (replay_buffer_OOO[i].m_valid)	
       {
-        replayInst.push_back(replay_buffer[i].m_inst);	
+        replayInst.push_back(replay_buffer_OOO[i].m_inst);	
       }	
     }	
     return replayInst;	
@@ -347,7 +454,7 @@ class shd_warp_t {
   std::vector<const warp_inst_t *> get_Replay_buffer_Inst_check()  {	
     std::vector<const warp_inst_t *> replayInst;	
     for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++) {	
-      if (replay_buffer[i].m_valid)	
+      if (replay_buffer_OOO[i].m_valid)	
       {
         std::cout <<"IBUFFER_CONTENT_REPLAY_CHECK_VALID "<<replay_buffer[i].m_pc<<" "<<&replay_buffer[i].m_pc<<" "<<replay_buffer[i].m_inst->outcount<<" "<<&replay_buffer[i].m_inst->outcount<<" "<<&replay_buffer[i].m_inst->out[0]<<" "<<replay_buffer[i].m_inst->out[0]<<" "<<&replay_buffer[i].m_inst<<"\n";
       }	
@@ -366,6 +473,997 @@ class shd_warp_t {
     }	
   }	
   // end of REPLAY BUFFER FUNCTIONS	
+
+  // complete OOO replay buffer
+
+  void replay_buffer_fill_OOO(unsigned slot, const warp_inst_t *pI, int PC,int tail,int num_stores,int warp, int mem_count, active_mask_t active_mask, int num_cycles, int cycle_comp) {	
+    assert(slot < REPLAY_BUFFER_SIZE);	
+    replay_buffer_OOO[slot].m_inst = pI;	
+    replay_buffer_OOO[slot].m_valid = true;	
+    replay_buffer_OOO[slot].m_pc = PC;
+    replay_buffer_OOO[slot].m_index = tail;
+    replay_buffer_OOO[slot].m_stores = num_stores;	
+    replay_buffer_OOO[slot].m_meminst = mem_count;
+    replay_buffer_OOO[slot].m_active_mask = active_mask;
+    replay_buffer_OOO[slot].m_pushed_in = num_cycles;
+  }	
+
+  void set_ibuffer_pushed_OOO(int cycle, int slot)
+  {
+    replay_buffer_OOO[slot].m_pushed_in = cycle;
+  }
+
+  int get_ibuffer_pushed_OOO(int slot)
+  {
+    return replay_buffer_OOO[slot].m_pushed_in;
+  }
+
+  active_mask_t get_active_mask_DEB(int slot)
+  {
+    return replay_buffer_OOO[slot].m_active_mask;
+  }
+
+  int replay_buffer_empty_idx_OOO() {	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
+      if (!replay_buffer_OOO[i].m_valid)	
+        return i;	
+    return -1;	
+  }	
+
+  int replay_buffer_count_OOO() const {	
+    int counter = 0;	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
+      if (replay_buffer_OOO[i].m_valid) 	
+        counter = counter + 1;	
+    return counter;	
+  }	
+
+  int replay_buffer_tot_size_OOO() const {
+    return REPLAY_BUFFER_SIZE;
+  }
+
+  int replay_buffer_space_OOO() const {
+    int counter = 0;	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
+      if (!replay_buffer_OOO[i].m_valid) 	
+        counter = counter + 1;	
+    return counter;	
+  }
+
+  int replay_buffer_used_OOO() const {
+    int counter = 0;	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
+      if (replay_buffer_OOO[i].m_valid) 	
+        counter = counter + 1;	
+    return counter;	
+  }
+
+  bool replay_buffer_empty_OOO() const {	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
+      if (replay_buffer_OOO[i].m_valid) return false;	
+    return true;	
+  }	
+  void replay_buffer_flush_OOO() {	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++) {	
+      if (replay_buffer_OOO[i].m_valid) dec_inst_in_pipeline();	
+      replay_buffer_OOO[i].m_inst = NULL;	
+      replay_buffer_OOO[i].m_valid = false;	
+      replay_buffer_OOO[i].m_pc = NULL;	
+      replay_buffer_OOO[i].m_index = -1;
+      replay_buffer_OOO[replay_m_next].m_stores = 0;
+      replay_buffer_OOO[replay_m_next].m_meminst = 0;
+    }	
+  }	
+
+  int replay_buffer_index_OOO(int index, int warp)
+  {
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
+    {
+      if (replay_buffer_OOO[i].m_index == index)
+        return i;
+    }  
+  }
+
+  const warp_inst_t *replay_buffer_next_inst_OOO(int index) 
+  { 
+    return replay_buffer_OOO[index].m_inst;
+  }	
+
+  int replay_buffer_next_pc_OOO(int index) { return replay_buffer_OOO[index].m_pc; }	
+  bool replay_buffer_next_valid_OOO(int index) { return replay_buffer_OOO[index].m_valid; }	
+  void replay_buffer_free_OOO(int index) {	
+    replay_buffer_OOO[index].m_inst = NULL;	
+    replay_buffer_OOO[index].m_valid = false;	
+    replay_buffer_OOO[index].m_pc = NULL;
+    replay_buffer_OOO[index].m_index = -1;
+    replay_buffer_OOO[index].m_stores = 0;
+    replay_buffer_OOO[index].m_meminst = 0;
+  }	
+  	
+  //void replay_buffer_step() { replay_m_next = (replay_m_next + 1) % REPLAY_BUFFER_SIZE; }	
+  void replay_buffer_step_OOO() { 	
+    if(replay_m_next + 1 < REPLAY_BUFFER_SIZE)	
+      replay_m_next = replay_m_next + 1;	
+    else  	
+      replay_m_next = 0;	
+  }	
+  std::vector<const warp_inst_t *> get_Replay_buffer_Inst_OOO(int index)  {	
+    std::vector<const warp_inst_t *> replayInst;	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++) {	
+      if (replay_buffer_OOO[i].m_valid && (replay_buffer_OOO[i].m_index < index))	
+      {
+        replayInst.push_back(replay_buffer_OOO[i].m_inst);	
+      }	
+    }	
+    return replayInst;	
+  }	
+
+  std::vector<const warp_inst_t *> get_Replay_buffer_Inst_check_OOO()  {	
+    std::vector<const warp_inst_t *> replayInst;	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++) {	
+      if (replay_buffer_OOO[i].m_valid)	
+      {
+        std::cout <<"IBUFFER_CONTENT_REPLAY_CHECK_VALID "<<replay_buffer_OOO[i].m_pc<<" "<<&replay_buffer_OOO[i].m_pc<<" "<<replay_buffer_OOO[i].m_inst->outcount<<" "<<&replay_buffer_OOO[i].m_inst->outcount<<" "<<&replay_buffer_OOO[i].m_inst->out[0]<<" "<<replay_buffer_OOO[i].m_inst->out[0]<<" "<<&replay_buffer_OOO[i].m_inst<<"\n";
+      }	
+    }	
+    return replayInst;	
+  }	
+
+  void replay_buffer_contents_OOO()	
+  {	
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
+    {	
+      if (replay_buffer[i].m_valid) 	
+        std::cout <<"REPLAY_BUFFER_CONTENT_VALID "<<replay_buffer_OOO[i].m_pc<<" "<<&replay_buffer_OOO[i].m_pc<<" "<<replay_buffer_OOO[i].m_inst->outcount<<" "<<&replay_buffer_OOO[i].m_inst->outcount<<" "<<&replay_buffer_OOO[i].m_inst->out[0]<<" "<<replay_buffer_OOO[i].m_inst->out[0]<<" "<<&replay_buffer_OOO[i].m_inst<<"\n";
+      else	
+        std::cout <<"IBUFFER_CONTENT_INVALID "<<i<<" "<<replay_buffer_OOO[i].m_valid<<" "<<replay_m_next<<"\n";	
+    }	
+  }	
+
+  void replay_buffer_increment_tail_OOO()
+  {
+    replay_buffer_tail++;
+  }
+
+  void replay_buffer_decrement_tail_OOO()
+  {
+    replay_buffer_tail--;
+  }
+
+  int replay_buffer_get_tail_OOO()
+  {
+    return replay_buffer_tail;
+  }
+
+  void replay_buffer_increase_store()
+  {
+    replay_buffer_store_inst++;
+  }
+
+  void replay_buffer_decrease_store()
+  {
+    replay_buffer_store_inst--;
+  }
+
+  int replay_buffer_get_store()
+  {
+    return replay_buffer_store_inst;
+  }
+
+  void replay_buffer_increase_memory_count()
+  {
+    replay_buffer_memory_inst++;
+  }
+
+  void replay_buffer_decrease_memory_count()
+  {
+    replay_buffer_memory_inst--;
+  }
+
+  int replay_buffer_get_memory_count()
+  {
+    return replay_buffer_memory_inst;
+  }
+
+  int replay_buffer_stores(int index)
+  {
+    return replay_buffer_OOO[index].m_stores;
+  }
+
+  int replay_buffer_mem_inst(int index)
+  {
+    return replay_buffer_OOO[index].m_meminst;
+  }
+
+  void replay_buffer_decrease_stores(int index)
+  {
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)
+    {
+      if(replay_buffer_OOO[i].m_valid && (replay_buffer_OOO[i].m_index > index))
+        replay_buffer_OOO[i].m_stores--;
+    }
+  }
+
+  void replay_buffer_decrease_meminst(int index, int warp)
+  {
+
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)
+    {
+      if(replay_buffer_OOO[i].m_valid && (replay_buffer_OOO[i].m_index > index))
+        replay_buffer_OOO[i].m_meminst--;
+    }
+  }
+
+  void replay_buffer_decrease_all_index_OOO(int index, int warp)
+  {
+
+    for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)
+    {
+      if(replay_buffer_OOO[i].m_valid && (replay_buffer_OOO[i].m_index > index))
+        replay_buffer_OOO[i].m_index = replay_buffer_OOO[i].m_index - 1;
+    }
+  }
+
+  // end of REPLAY OOO BUFFER FUNCTIONS	
+
+
+  // complete OOO Instruction buffer
+
+  bool ibuffer_empty_streaming_OOO() const {
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)
+      if (ibuffer_OOO[i].m_valid) return false;
+    return true;
+  }
+
+  bool ibuffer_empty_streaming_full_OOO() const {
+    int total_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+    for (unsigned i = 0; i < total_size; i++)
+      if (ibuffer_OOO[i].m_valid) return false;
+    return true;
+  }
+
+  bool ibuffer_has_space_streaming_OOO() const {
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)	
+      if (!ibuffer_OOO[i].m_valid) 	
+        return true;
+    return false;	
+  }
+
+  bool ibuffer_has_space_streaming_full_OOO() const {
+    int total_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+    for (unsigned i = 0; i < total_size; i++)	
+      if (!ibuffer_OOO[i].m_valid) 	
+        return true;
+    return false;	
+  }
+
+  void ibuffer_fill_OOO(unsigned slot, const warp_inst_t *pI, int PC,int tail,int tail_full_OOO, int num_stores,int warp, int mem_count, int m_control_count, int cycle) {	
+
+    //assert(slot < IBUFFER_SIZE_IN_ORDER);	
+    ibuffer_OOO[slot].m_inst = pI;	
+    ibuffer_OOO[slot].m_valid = true;	
+    ibuffer_OOO[slot].m_pc = PC;
+    ibuffer_OOO[slot].m_index = tail;
+    ibuffer_OOO[slot].m_index_full_OOO = tail_full_OOO;
+    ibuffer_OOO[slot].m_stores = num_stores;	
+    ibuffer_OOO[slot].m_meminst = mem_count;
+    ibuffer_OOO[slot].control_check = 0;
+    ibuffer_OOO[slot].control_check_in_order = 0;
+    ibuffer_OOO[slot].m_control_inst_OOO = m_control_count;
+    ibuffer_OOO[slot].m_pushed_in_OOO = cycle;
+    ibuffer_OOO[slot].m_DEB_bit = 0;
+  }
+
+//issue_warp_push_in_DEB_IB_OOO
+  void ibuffer_fill_OOO_replay(unsigned slot, int tail, int index) {	
+    assert(slot < (IBUFFER_SIZE_OOO_ORDER + IBUFFER_SIZE_IN_ORDER));	
+    ibuffer_OOO[slot].m_inst = ibuffer_OOO[index].m_inst;	
+    ibuffer_OOO[slot].m_valid = true;	
+    ibuffer_OOO[slot].m_pc = ibuffer_OOO[index].m_pc;
+    ibuffer_OOO[slot].m_index = tail;
+    ibuffer_OOO[slot].m_stores = ibuffer_OOO[index].m_stores;	
+    ibuffer_OOO[slot].m_meminst = ibuffer_OOO[index].m_meminst;
+    ibuffer_OOO[slot].control_check = ibuffer_OOO[index].control_check;
+    ibuffer_OOO[slot].m_control_inst_OOO = ibuffer_OOO[index].m_control_inst_OOO;
+    ibuffer_OOO[slot].m_pushed_in_OOO = ibuffer_OOO[index].m_pushed_in_OOO;
+    ibuffer_OOO[slot].m_DEB_bit = 0;
+  }	
+
+  int get_mem_inst_OOO(unsigned slot)
+  {
+    return ibuffer_OOO[slot].m_meminst;
+  }
+
+  int ibuffer_DEB_bit(int loc)
+  {
+    return ibuffer_OOO[loc].m_DEB_bit;
+  }
+
+  void set_ibuffer_DEB_bit(int loc)
+  {
+    ibuffer_OOO[loc].m_DEB_bit = 1;
+  }
+
+  bool one_inst_not_DEB()
+  {
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)
+    {
+      if(ibuffer_OOO[i].m_DEB_bit == 0)
+        return true;
+    }
+    return false;
+  }
+
+  int get_control_insts_here_0(int loc)
+  {
+    std::cout<<"IBUFFER_CONT_STATUS "<<ibuffer_OOO[1].m_control_inst_OOO<<" "<<ibuffer_OOO[loc].m_control_inst_OOO<<" "<<loc<<"\n";
+  }
+
+  int get_ibuffer_pushed_OOO_all(unsigned slot)
+  {
+    return ibuffer_OOO[slot].m_pushed_in_OOO;
+  }
+
+  int ibuffer_empty_idx_OOO() {	
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER ; i++)	
+    {
+      if (!ibuffer_OOO[i].m_valid)	
+        return i;
+    }
+    return -1;	
+  }
+
+  int ibuffer_empty_idx_FULL_OOO() {	
+    int tot_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+    for (unsigned i = 0; i < tot_size ; i++)	
+      if (!ibuffer_OOO[i].m_valid)	
+        return i;	
+    return -1;	
+  }
+
+  int ibuffer_empty_idx_DEB_OOO() {	
+    int tot_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+    for (unsigned i = IBUFFER_SIZE_IN_ORDER; i < tot_size ; i++)	
+      if (!ibuffer_OOO[i].m_valid)	
+        return i;	
+    return -1;	
+  }
+
+  int ibuffer_count_OOO() const {	
+    int counter = 0;	
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)	
+      if (ibuffer_OOO[i].m_valid) 	
+        counter = counter + 1;	
+    return counter;	
+  }	
+
+  int ibuffer_tot_size_OOO() const {
+    return IBUFFER_SIZE_IN_ORDER;
+  }
+
+  int ibuffer_tot_size_full_OOO() const {
+    int total_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+    return total_size;
+  }
+
+  int replay_tot_size_OOO() const {
+    return REPLAY_BUFFER_SIZE;
+  }
+
+  int ibuffer_space_OOO() const {
+    int counter = 0;	
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)	
+      if (!ibuffer_OOO[i].m_valid) 	
+        counter = counter + 1;	
+    return counter;	
+  }
+
+  int ibuffer_used_OOO() const {
+    int counter = 0;	
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)	
+      if (ibuffer_OOO[i].m_valid) 	
+        counter = counter + 1;	
+    return counter;	
+  }
+
+  bool ibuffer_empty_OOO() const {	
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)	
+      if (ibuffer_OOO[i].m_valid) return false;	
+    return true;	
+  }	
+
+  bool ibuffer_empty_OOO_full() const {	
+    int total_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+    for (unsigned i = 0; i < total_size; i++)	
+      if (ibuffer_OOO[i].m_valid) return false;	
+    return true;	
+  }	
+
+  void ibuffer_flush_OOO() {	
+    int total_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+    for (unsigned i = 0; i < total_size; i++) {	
+      //if(ibuffer_OOO[i].m_index >= index)
+      {
+        if (ibuffer_OOO[i].m_valid) dec_inst_in_pipeline();	
+        ibuffer_OOO[i].m_inst = NULL;	
+        ibuffer_OOO[i].m_valid = false;	
+        ibuffer_OOO[i].m_pc = NULL;	
+        ibuffer_OOO[i].m_index = -1;
+        ibuffer_OOO[i].m_index_full_OOO = -1;
+        ibuffer_OOO[i].m_stores = 0;
+        ibuffer_OOO[i].m_meminst = 0;
+        ibuffer_OOO[i].control_check = 0;
+        ibuffer_OOO[i].m_control_inst_OOO = 0;
+        ibuffer_OOO[i].m_DEB_bit = 0;
+      }
+    }	
+    ibuffer_store_inst = 0;
+    ibuffer_memory_inst = 0;
+    ibuffer_tail = 0;
+    ibuffer_tail_full_OOO = 0;
+    ibuffer_control_inst = 0;
+
+    //std::cout <<"IBUFFER_FLUSHING_HERE\n";
+  }	
+
+  void ibuffer_flush_OOO_in_OOO() {	
+    int total_size = IBUFFER_SIZE_IN_ORDER;
+    for (unsigned i = 0; i < total_size; i++) {	
+      //if(ibuffer_OOO[i].m_index >= index)
+      {
+        if (ibuffer_OOO[i].m_valid) dec_inst_in_pipeline();	
+        ibuffer_OOO[i].m_inst = NULL;	
+        ibuffer_OOO[i].m_valid = false;	
+        ibuffer_OOO[i].m_pc = NULL;	
+        ibuffer_OOO[i].m_index = -1;
+        ibuffer_OOO[i].m_index_full_OOO = -1;
+        ibuffer_OOO[i].m_stores = 0;
+        ibuffer_OOO[i].m_meminst = 0;
+        ibuffer_OOO[i].control_check = 0;
+        ibuffer_OOO[i].m_control_inst_OOO = 0;
+        ibuffer_OOO[i].m_DEB_bit = 0;
+      }
+    }	
+    ibuffer_store_inst = 0;
+    ibuffer_memory_inst = 0;
+    ibuffer_tail = 0;
+    ibuffer_tail_full_OOO = 0;
+    ibuffer_control_inst = 0;
+
+    //std::cout <<"IBUFFER_FLUSHING_HERE\n";
+  }	
+
+  int get_store_inst_OOO(int slot)
+  {
+    return ibuffer_OOO[slot].m_stores;
+  }
+
+  void ibuffer_OOO_show_content()
+  {
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++) {	
+      std::cout <<"INST_CHECK "<<i<<" "<<ibuffer_OOO[i].m_valid<<" pI "<<ibuffer_OOO[i].m_inst<<" "<<ibuffer_OOO[i].m_pc<<" idx "<<ibuffer_OOO[i].m_index<<" "<<ibuffer_OOO[i].control_check<<"\n"<<std::flush;
+    }
+  }
+
+  void ibuffer_OOO_show_content_full()
+  {
+    int total_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+    for (unsigned i = 0; i < total_size; i++) {	
+      std::cout <<"INST_CHECK "<<i<<" "<<ibuffer_OOO[i].m_valid<<" pI "<<ibuffer_OOO[i].m_inst<<" "<<ibuffer_OOO[i].m_inst->op<<" "<<ibuffer_OOO[i].m_pc<<" idx "<<ibuffer_OOO[i].m_index<<" "<<ibuffer_OOO[i].control_check<<"\n"<<std::flush;
+    }
+  }
+
+  int ibuffer_index_OOO(int index, int warp)
+  {
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)	
+    {
+      if (ibuffer_OOO[i].m_index == index)
+        return i;
+    }  
+  }
+
+  // bug Ishita -> Make this ust IBUFFER_SIZE -> so you can try this without bother for DEB size
+  // int ibuffer_index_full_OOO(int index, int warp)
+  // {
+  //   int total_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+  //   for (unsigned i = 0; i < total_size; i++)	
+  //   {
+  //     if (ibuffer_OOO[i].m_index == index)
+  //       return i;
+  //   }  
+  // }
+
+  int ibuffer_index_full_OOO(int index, int warp)
+  {
+    int total_size = IBUFFER_SIZE;
+    for (unsigned i = 0; i < total_size; i++)	
+    {
+      if (ibuffer_OOO[i].m_index == index)
+        return i;
+    }  
+  }
+
+  
+
+  const warp_inst_t *ibuffer_next_inst_OOO(int index) 
+  { 
+    return ibuffer_OOO[index].m_inst;
+  }	
+
+  int ibuffer_next_pc_OOO(int index) { return ibuffer_OOO[index].m_pc; }	
+  bool ibuffer_next_valid_OOO(int index) { return ibuffer_OOO[index].m_valid; }	
+  
+  void ibuffer_free_OOO(int index) {	
+    ibuffer_OOO[index].m_inst = NULL;	
+    ibuffer_OOO[index].m_valid = false;	
+    ibuffer_OOO[index].m_pc = NULL;
+    ibuffer_OOO[index].m_index = -1;
+    ibuffer_OOO[index].m_index_full_OOO = -1;
+    ibuffer_OOO[index].m_stores = 0;
+    ibuffer_OOO[index].m_meminst = 0;
+    ibuffer_OOO[index].control_check = 0;
+    ibuffer_OOO[index].m_control_inst_OOO = 0;
+    ibuffer_OOO[index].m_DEB_bit = 0;
+  }	
+
+  int get_pc_DEB_IB_OOO(int index)
+  {
+    return ibuffer_OOO[index].m_pc;
+  }
+
+  bool get_control_bit(int index) {
+    return ibuffer_OOO[index].control_check;
+  }
+
+  bool get_control_bit_in_order(int index) {
+    return ibuffer_OOO[index].control_check_in_order;
+  }
+
+  void set_control_bit(int index)
+  {
+    ibuffer_OOO[index].control_check = 1;
+  }
+
+  void set_control_bit_in_order(int index)
+  {
+    ibuffer_OOO[index].control_check_in_order = 1;
+  }
+
+  void set_active_mask(active_mask_t active_mask, int index)
+  {
+    ibuffer_OOO[index].m_active_mask = active_mask;
+  }
+
+  active_mask_t get_active_mask(int index)
+  {
+    return ibuffer_OOO[index].m_active_mask;
+  }
+
+  bool get_control_bit_prev(int index)
+  {
+    {
+      for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++) {	
+        if(ibuffer_OOO[i].m_index == index)
+        {
+          return  ibuffer_OOO[i].control_check;
+        }
+      }
+    }
+  }
+
+  bool get_control_bit_prev_full_OOO(int index)
+  {
+    {
+      int total_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+      for (unsigned i = 0; i < total_size; i++) {	
+        if(ibuffer_OOO[i].m_index == index)
+        {
+          return  ibuffer_OOO[i].control_check;
+        }
+      }
+    }
+  }
+
+  bool get_control_bit_prev_check(int index)
+  {
+    std::cout <<"INDEX_CHER_TEST "<<index<<"\n";
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++) {	
+      if(ibuffer_OOO[i].m_index == index)
+      {
+        std::cout <<"INST_CHECK "<<i<<" "<<ibuffer_OOO[i].m_valid<<" "<<ibuffer_OOO[i].m_pc<<" "<<ibuffer_OOO[i].m_index<<" "<<ibuffer_OOO[i].control_check<<"\n"<<std::flush;
+      }
+    }
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++) {	
+      if(ibuffer_OOO[i].m_index == index)
+      {
+        std::cout <<"THE_VALUE_IS "<<ibuffer_OOO[i].control_check<<"\n";
+        return  ibuffer_OOO[i].control_check;
+      }
+    }
+  }
+
+  //void replay_buffer_step() { replay_m_next = (replay_m_next + 1) % REPLAY_BUFFER_SIZE; }	
+  void ibuffer_step_OOO() { 	
+    if(replay_m_next + 1 < IBUFFER_SIZE_IN_ORDER)	
+      replay_m_next = replay_m_next + 1;	
+    else  	
+      replay_m_next = 0;	
+  }	
+
+  std::vector<const warp_inst_t *> get_ibuffer_Inst_check_OOO()  {	
+    std::vector<const warp_inst_t *> replayInst;	
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++) {	
+      if (ibuffer_OOO[i].m_valid)	
+      {
+        std::cout <<"IBUFFER_CONTENT_REPLAY_CHECK_VALID "<<ibuffer_OOO[i].m_pc<<" "<<&ibuffer_OOO[i].m_pc<<" "<<ibuffer_OOO[i].m_inst->outcount<<" "<<&ibuffer_OOO[i].m_inst->outcount<<" "<<&ibuffer_OOO[i].m_inst->out[0]<<" "<<ibuffer_OOO[i].m_inst->out[0]<<" "<<&ibuffer_OOO[i].m_inst<<"\n";
+      }	
+    }	
+    return replayInst;	
+  }	
+
+  void ibuffer_contents_OOO()	
+  {	
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++)	
+    {	
+      if (replay_buffer[i].m_valid) 	
+        std::cout <<"REPLAY_BUFFER_CONTENT_VALID "<<ibuffer_OOO[i].m_pc<<" "<<&ibuffer_OOO[i].m_pc<<" "<<ibuffer_OOO[i].m_inst->outcount<<" "<<&ibuffer_OOO[i].m_inst->outcount<<" "<<&ibuffer_OOO[i].m_inst->out[0]<<" "<<ibuffer_OOO[i].m_inst->out[0]<<" "<<&ibuffer_OOO[i].m_inst<<"\n";
+      else	
+        std::cout <<"IBUFFER_CONTENT_INVALID "<<i<<" "<<ibuffer_OOO[i].m_valid<<" "<<replay_m_next<<"\n";	
+    }	
+  }	
+
+  std::vector<const warp_inst_t *> get_ibuffer_Inst_OOO(int index)  {	
+    std::vector<const warp_inst_t *> replayInst;	
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++) {	
+      if (ibuffer_OOO[i].m_valid && ibuffer_OOO[i].m_index < index)	
+      {	
+        replayInst.push_back(ibuffer_OOO[i].m_inst);	
+      }	
+    }	
+    return replayInst;	
+  }	
+
+  // OOO IB REPLAY BUFFER
+   // use same ibuffer fill function with new location and empty the old ibuffer entery using inst loc
+
+   // check if DEB in IB is empty
+   bool is_DEB_empty_OOO()
+   {
+     // offset the size of the IN order OOO space
+     int offset = IBUFFER_SIZE_IN_ORDER;
+     for(int i=0;i<IBUFFER_SIZE_OOO_ORDER;i++)
+     {
+       if(ibuffer_OOO[i+offset].m_valid)
+        return false;
+     }
+     return true;
+   }
+
+   void ibuffer_step_streaming_IB_DEB_OOO() 
+  { 
+    if(ibuffer_m_next_streaming + 1 < IBUFFER_SIZE_IN_ORDER)	
+      ibuffer_m_next_streaming = ibuffer_m_next_streaming + 1;	
+    else  	
+      ibuffer_m_next_streaming = 0; 
+  }
+
+  bool ibuffer_empty_OOO_DEB_IB() const {	
+    int offset = IBUFFER_SIZE_IN_ORDER;
+    for (unsigned i = 0; i < IBUFFER_SIZE_OOO_ORDER; i++)	
+      if (ibuffer_OOO[i+offset].m_valid) return false;	
+    return true;	
+  }	
+
+   int get_space_for_DEB_inst_OOO()
+   {
+     // offset the size of the IN order OOO space
+     int offset = IBUFFER_SIZE_IN_ORDER;
+     int total_size = IBUFFER_SIZE_IN_ORDER + IBUFFER_SIZE_OOO_ORDER;
+     for(int i=offset;i<total_size;i++)
+     {
+       if(ibuffer_OOO[i].m_valid)
+        return i;
+     }
+     return -1;
+   }
+
+  int ibuffer_index_DEB_IB_OOO(int index, int warp)
+  {
+    int offset = IBUFFER_SIZE_IN_ORDER;
+    for (unsigned i = 0; i < IBUFFER_SIZE_OOO_ORDER; i++)	
+    {
+      if (ibuffer_OOO[i+offset].m_index == index)
+        return (i+offset);
+    }  
+  }
+
+  std::vector<const warp_inst_t *> get_Replay_buffer_Inst_DEB_IB_OOO(int index)  {	
+    std::vector<const warp_inst_t *> replayInst;	
+    for (unsigned i = 0; i < IBUFFER_SIZE_OOO_ORDER; i++) {	
+      if (ibuffer_OOO[IBUFFER_SIZE_IN_ORDER+i].m_valid && (ibuffer_OOO[IBUFFER_SIZE_IN_ORDER+i].m_index < index))	
+      {
+        replayInst.push_back(ibuffer_OOO[IBUFFER_SIZE_IN_ORDER+i].m_inst);	
+      }	
+    }	
+    return replayInst;	
+  }	
+
+  std::vector<const warp_inst_t *> get_Replay_buffer_Inst_IB_OOO(int index)  {	
+    std::vector<const warp_inst_t *> replayInst;	
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++) {	
+      if (ibuffer_OOO[i].m_valid && (ibuffer_OOO[i].m_index < index))	
+      {
+        replayInst.push_back(ibuffer_OOO[i].m_inst);	
+      }	
+    }	
+    return replayInst;	
+  }
+
+  std::vector<const warp_inst_t *> get_Replay_buffer_Inst_DEB_OOO(int index)  {	
+    std::vector<const warp_inst_t *> replayInst;	
+    for (unsigned i = 0; i < IBUFFER_SIZE_OOO_ORDER; i++) {	
+      if (ibuffer_OOO[IBUFFER_SIZE_IN_ORDER+i].m_valid && (ibuffer_OOO[IBUFFER_SIZE_IN_ORDER+i].m_index < index))	
+      {
+        replayInst.push_back(ibuffer_OOO[IBUFFER_SIZE_IN_ORDER+i].m_inst);	
+      }	
+    }	
+    return replayInst;	
+  }	
+
+  // Ishita bug found
+  std::vector<const warp_inst_t *> get_Replay_buffer_Inst_DEB_in_order(int index)  {	
+    std::vector<const warp_inst_t *> replayInst;	
+    for (unsigned i = 0; i < IBUFFER_SIZE_OOO_ORDER; i++) {	
+      if (ibuffer_OOO[IBUFFER_SIZE_IN_ORDER+i].m_valid)	
+      {
+        replayInst.push_back(ibuffer_OOO[IBUFFER_SIZE_IN_ORDER+i].m_inst);	
+      }	
+    }	
+    return replayInst;	
+  }	
+
+  void replay_buffer_increment_tail_IB_DEB_OOO()
+  {
+    ib_replay_buffer_tail_DEB_OOO++;
+  }
+
+  void replay_buffer_decrement_tail_IB_DEB_OOO()
+  {
+    ib_replay_buffer_tail_DEB_OOO--;
+  }
+
+  int replay_buffer_get_tail_IB_DEB_OOO()
+  {
+    return ib_replay_buffer_tail_DEB_OOO;
+  }
+
+
+  void ibuffer_increment_tail_OOO()
+  {
+    ibuffer_tail++;
+  }
+
+  void ibuffer_decrement_tail_OOO()
+  {
+    ibuffer_tail--;
+  }
+
+  int ibuffer_get_tail_OOO()
+  {
+    return ibuffer_tail;
+  }
+
+  void ibuffer_increment_tail_full_OOO()
+  {
+    ibuffer_tail_full_OOO++;
+  }
+
+  void ibuffer_increment_inst_number_OOO()
+  {
+    ibuffer_inst_number++;
+  }
+
+  int get_inst_number_OOO()
+  {
+    return ibuffer_inst_number;
+  }
+
+  void ibuffer_decrement_tail_full_OOO()
+  {
+    ibuffer_tail_full_OOO--;
+  }
+
+  int ibuffer_get_tail_full_OOO()
+  {
+    return ibuffer_tail_full_OOO;
+  }
+
+  void ibuffer_increment_control_inst()
+  {
+    ibuffer_control_inst++;
+  }
+
+  void ibuffer_decrement_control_inst_OOO()
+  {
+    ibuffer_control_inst--;
+  }
+
+  int ibuffer_get_control_inst_OOO()
+  {
+    return ibuffer_control_inst;
+  }
+
+
+  void ibuffer_increase_store()
+  {
+    ibuffer_store_inst++;
+  }
+
+  void ibuffer_decrease_store()
+  {
+    ibuffer_store_inst--;
+  }
+
+  int ibuffer_get_store()
+  {
+    return ibuffer_store_inst;
+  }
+
+  void ibuffer_increase_memory_count()
+  {
+    ibuffer_memory_inst++;
+  }
+
+  void ibuffer_decrease_memory_count()
+  {
+    ibuffer_memory_inst--;
+  }
+
+  int ibuffer_get_memory_count()
+  {
+    return ibuffer_memory_inst;
+  }
+
+  int ibuffer_stores(int index)
+  {
+    return ibuffer_OOO[index].m_stores;
+  }
+
+  int ibuffer_mem_inst(int index)
+  {
+    return ibuffer_OOO[index].m_meminst;
+  }
+
+  int ibuffer_cont_inst(int index)
+  {
+    return ibuffer_OOO[index].m_control_inst_OOO;
+  }
+
+  void ibuffer_decrease_stores(int index)
+  {
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++)
+    {
+      if(ibuffer_OOO[i].m_valid && (ibuffer_OOO[i].m_index > index))
+        ibuffer_OOO[i].m_stores--;
+    }
+  }
+
+  void ibuffer_decrease_stores_IB_IN(int index)
+  {
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)
+    {
+      if(ibuffer_OOO[i].m_valid && (ibuffer_OOO[i].m_index > index))
+        ibuffer_OOO[i].m_stores--;
+    }
+  }
+
+  void ibuffer_decrease_stores_IB_OOO(int index)
+  {
+    int offset = IBUFFER_SIZE_IN_ORDER;
+    for (unsigned i = 0; i < IBUFFER_SIZE_OOO_ORDER; i++)
+    {
+      if(ibuffer_OOO[i+offset].m_valid && (ibuffer_OOO[i+offset].m_index > index))
+        ibuffer_OOO[i+offset].m_stores--;
+    }
+  }
+
+  void ibuffer_decrease_stores_IB_IN_FROM_OOO(int index)
+  {
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)
+    {
+      if(ibuffer_OOO[i].m_valid)
+        ibuffer_OOO[i].m_stores--;
+    }
+  }
+
+  void ibuffer_decrease_meminst(int index, int warp)
+  {
+
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++)
+    {
+      if(ibuffer_OOO[i].m_valid && (ibuffer_OOO[i].m_index > index))
+        ibuffer_OOO[i].m_meminst--;
+    }
+  }
+
+  void ibuffer_decrease_meminst_IB_IN(int index, int warp)
+  {
+
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)
+    {
+      if(ibuffer_OOO[i].m_valid && (ibuffer_OOO[i].m_index > index))
+        ibuffer_OOO[i].m_meminst--;
+    }
+  }
+
+  void ibuffer_decrease_meminst_IB_IN_FROM_OOO(int index, int warp)
+  {
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)
+    {
+      if(ibuffer_OOO[i].m_valid)
+        ibuffer_OOO[i].m_meminst--;
+    }
+  }
+
+  void ibuffer_decrease_meminst_IB_OOO(int index, int warp)
+  {
+    int offset = IBUFFER_SIZE_IN_ORDER;
+    for (unsigned i = 0; i < IBUFFER_SIZE_OOO_ORDER; i++)
+    {
+      if(ibuffer_OOO[i+offset].m_valid && (ibuffer_OOO[i+offset].m_index > index))
+        ibuffer_OOO[i+offset].m_meminst--;
+    }
+  }
+
+  void ibuffer_decrease_control_inst(int index, int warp)
+  {
+
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++)
+    {
+      if(ibuffer_OOO[i].m_valid && (ibuffer_OOO[i].m_index > index))
+        ibuffer_OOO[i].m_control_inst_OOO--;
+    }
+  }
+
+  void ibuffer_decrease_all_index_OOO(int index, int warp)
+  {
+
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++)
+    {
+      if(ibuffer_OOO[i].m_valid && (ibuffer_OOO[i].m_index > index))
+        ibuffer_OOO[i].m_index = ibuffer_OOO[i].m_index - 1;
+    }
+  }
+
+  void ibuffer_decrease_all_index_IB_IN_OOO(int index, int warp)
+  {
+
+    for (unsigned i = 0; i < IBUFFER_SIZE_IN_ORDER; i++)
+    {
+      if(ibuffer_OOO[i].m_valid && (ibuffer_OOO[i].m_index > index))
+        ibuffer_OOO[i].m_index = ibuffer_OOO[i].m_index - 1;
+    }
+  }
+
+  void ibuffer_decrease_all_index_IB_DEB_OOO(int index, int warp)
+  {
+    int offset = IBUFFER_SIZE_IN_ORDER;
+    for (unsigned i = 0; i < IBUFFER_SIZE_OOO_ORDER; i++)
+    {
+      if(ibuffer_OOO[i+offset].m_valid && (ibuffer_OOO[i+offset].m_index > index))
+        ibuffer_OOO[i+offset].m_index = ibuffer_OOO[i+offset].m_index - 1;
+    }
+  }
+
+  int get_ibuffer_size()
+  {
+    return IBUFFER_SIZE;
+  }
+
+  // end of OOO Instruction BUFFER FUNCTIONS	
+
+
+
   // REPLAY MEM REPLAY BUFFER FUNCTIONS	
   void replay_buffer_fill_mem(unsigned slot, const warp_inst_t *pI, int PC) {	
     assert(slot < REPLAY_BUFFER_SIZE_MEM);	
@@ -378,6 +1476,19 @@ class shd_warp_t {
     else	
       replay_m_fill_next_mem = 0;	
   }	
+
+  void step_replay_head()
+  {
+    if(replay_buffer_head + 1 < IBUFFER_SIZE)	
+      replay_buffer_head = replay_buffer_head + 1;	
+    else  	
+      replay_buffer_head = 0; 
+  }
+
+  unsigned get_replay_head()
+  {
+    return replay_buffer_head;
+  }
 
   int replay_buffer_empty_idx_mem() {	
     // for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
@@ -399,6 +1510,7 @@ class shd_warp_t {
       if (replay_buffer_mem[i].m_valid) return false;	
     return true;	
   }	
+
   void replay_buffer_flush_mem() {	
     for (unsigned i = 0; i < REPLAY_BUFFER_SIZE_MEM; i++) {	
       if (replay_buffer_mem[i].m_valid) dec_inst_in_pipeline();	
@@ -433,6 +1545,7 @@ class shd_warp_t {
     }	
     return replayInst;	
   }	
+
   void replay_buffer_contents_mem()	
   {	
     for (unsigned i = 0; i < REPLAY_BUFFER_SIZE_MEM; i++)	
@@ -446,9 +1559,117 @@ class shd_warp_t {
 
   // end of MEM REPLAY BUFFER FUNCTIONS
 
+  //ibuffer changed CORRECT
+
+  void ibuffer_fill_streaming(unsigned slot, const warp_inst_t *pI) {
+    assert(slot < IBUFFER_SIZE);
+    m_ibuffer[slot].m_inst = pI;
+    m_ibuffer[slot].m_valid = true;
+    if(ibuffer_m_fill_next_streaming + 1 < IBUFFER_SIZE)	
+      ibuffer_m_fill_next_streaming = ibuffer_m_fill_next_streaming + 1;	
+    else	
+      ibuffer_m_fill_next_streaming = 0;
+  }
+
+  void set_ibuffer_pushed_streaming(int cycle,unsigned slot)
+  {
+    m_ibuffer[slot].m_pushed_in = cycle;
+  }
+
+  int get_ibuffer_pushed_streaming()
+  {
+    return m_ibuffer[ibuffer_m_next_streaming].m_pushed_in;
+  }
+
+  int ibuffer_empty_idx_streaming() {	
+    // for (unsigned i = 0; i < REPLAY_BUFFER_SIZE; i++)	
+    //   if (!replay_buffer[i].m_valid)	
+    //     return i;	
+    if(!m_ibuffer[ibuffer_m_fill_next_streaming].m_valid)	
+      return ibuffer_m_fill_next_streaming;	
+    return -1;	
+  }	
+
+  bool ibuffer_empty_streaming() const {
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++)
+      if (m_ibuffer[i].m_valid) return false;
+    return true;
+  }
+
+  const warp_inst_t *ibuffer_check_indep_inst_streaming() {	
+    int next = (ibuffer_m_next_streaming + 1) % IBUFFER_SIZE;	
+    return m_ibuffer[next].m_inst;	
+  }	
+
+  int ibuffer_count_streaming() const {	
+    int counter = 0;	
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++)	
+      if (m_ibuffer[i].m_valid) 	
+        counter = counter + 1;	
+    return counter;	
+  }
+
+  bool ibuffer_has_space_stareaming() const {
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++)	
+      if (!m_ibuffer[i].m_valid) 	
+        return true;
+    return false;	
+  }
+
+  void ibuffer_flush_streaming() {	
+    for (unsigned i = 0; i < IBUFFER_SIZE; i++) {	
+      if (m_ibuffer[i].m_valid) dec_inst_in_pipeline();	
+      m_ibuffer[i].m_inst = NULL;	
+      m_ibuffer[i].m_valid = false;		
+    }
+    ibuffer_m_fill_next_streaming = 0;
+    ibuffer_m_next_streaming = 0;
+
+    //std::cout <<"IBUFFER_FLUSHING_HERE\n";
+  }	
+
+  void ibuffer_step_streaming() 
+  { 
+    if(ibuffer_m_next_streaming + 1 < IBUFFER_SIZE)	
+      ibuffer_m_next_streaming = ibuffer_m_next_streaming + 1;	
+    else  	
+      ibuffer_m_next_streaming = 0; 
+  }
+
+  int ibuffer_inst_used_streaming()
+  {
+    return ibuffer_m_next_streaming;
+  }
+
+  int ibuffer_inst_pushed_space()
+  {
+    return ibuffer_m_fill_next_streaming;
+  }
+
+  const warp_inst_t *ibuffer_next_inst_streaming() { return m_ibuffer[ibuffer_m_next_streaming].m_inst; }
+  int get_ibufer_streaming() { return ibuffer_m_next_streaming; }
+  int ibuffer_next_id_streaming() {return ibuffer_m_next_streaming; }
+  bool ibuffer_next_valid_streaming() { return m_ibuffer[ibuffer_m_next_streaming].m_valid; }
+  void ibuffer_free_streaming() {
+    m_ibuffer[ibuffer_m_next_streaming].m_inst = NULL;
+    m_ibuffer[ibuffer_m_next_streaming].m_valid = false;
+  }
+  int freed_pc_streaming()
+  {
+    return m_ibuffer[ibuffer_m_next_streaming].m_inst->pc;
+  }
+
+  // end of streaming IBUFFER functions correct
+
+  void set_DEB_dep_bit(bool val) { DEB_dep = val;}
+  bool get_DEB_dep_bit() { return DEB_dep; }
+
   bool imiss_pending() const { return m_imiss_pending; }
   void set_imiss_pending() { m_imiss_pending = true; }
   void clear_imiss_pending() { m_imiss_pending = false; }
+
+  void inc_inst_count() { num_inst_exec_warp++;  }
+  int inst_count_val() {return num_inst_exec_warp;}
 
   bool stores_done() const { return m_stores_outstanding == 0; }
   void inc_store_req() { m_stores_outstanding++; }
@@ -469,10 +1690,13 @@ class shd_warp_t {
     return (num_inst_in_pipeline() - num_inst_in_buffer());
   }
   bool inst_in_pipeline() const { return m_inst_in_pipeline > 0; }
+  int inst_in_pipeline_count() const { return m_inst_in_pipeline; }
   void inc_inst_in_pipeline() { m_inst_in_pipeline++; }
   void dec_inst_in_pipeline() {
     assert(m_inst_in_pipeline > 0);
     m_inst_in_pipeline--;
+    if(m_warp_id == 4)
+      inst_counter_warp_dec++;
   }
 
   unsigned get_cta_id() const { return m_cta_id; }
@@ -481,12 +1705,22 @@ class shd_warp_t {
   unsigned get_warp_id() const { return m_warp_id; }
 
   class shader_core_ctx * get_shader() { return m_shader; }
+
+  unsigned last_pc_decoded_streaming;
+  unsigned last_pc_decoded_streaming_test;
+  unsigned stalls_between_issues;
+  unsigned num_inst_OOO;
+  int stalled_on_replay;
+  int warp_stuck_replay;
  private:
-  static const unsigned IBUFFER_SIZE = 2;
-  static const unsigned REPLAY_BUFFER_SIZE = 1;	// also change DEB_BUFFER_SIZE size in main.cc
+  static const unsigned IBUFFER_SIZE = 4;
+  static const unsigned IBUFFER_SIZE_IN_ORDER = 1;
+  static const unsigned IBUFFER_SIZE_OOO_ORDER = 3;
+  static const unsigned REPLAY_BUFFER_SIZE = 2  ;	// also change DEB_BUFFER_SIZE size in main.cc
   static const unsigned REPLAY_BUFFER_SIZE_MEM = 1;
   class shader_core_ctx *m_shader;
   unsigned m_cta_id;
+  
   unsigned m_warp_id;
   unsigned m_warp_size;
   unsigned m_dynamic_warp_id;
@@ -496,14 +1730,20 @@ class shd_warp_t {
   std::bitset<MAX_WARP_SIZE> m_active_threads;
 
   bool m_imiss_pending;
+  bool DEB_dep;
+  int num_inst_exec_warp;
 
   struct ibuffer_entry {
     ibuffer_entry() {
       m_valid = false;
       m_inst = NULL;
+      m_pushed_in = 0;
+      m_pushed_out = 0;
     }
     const warp_inst_t *m_inst;
     bool m_valid;
+    int m_pushed_in;
+    int m_pushed_out;
   };
 
   struct replay_buffer_entry {	
@@ -511,10 +1751,70 @@ class shd_warp_t {
       m_valid = false;	
       m_inst = NULL;	
       m_pc = NULL;	
+      m_pushed_in = 0;
+      m_pushed_out = 0;
     }	
     const warp_inst_t *m_inst;	
     bool m_valid;	
     int m_pc;	
+    int m_pushed_in;
+    int m_pushed_out;
+  };	
+
+  struct replay_buffer_entry_OOO {	
+    replay_buffer_entry_OOO() {	
+      m_valid = false;	
+      m_inst = NULL;	
+      m_pc = NULL;
+      m_index = -1;	
+      m_stores = 0;
+      m_meminst = 0;
+      m_active_mask;
+      m_pushed_in = 0;
+      m_pushed_out = 0;
+    }	
+    const warp_inst_t *m_inst;	
+    bool m_valid;	
+    int m_pc;	
+    int m_index;
+    int m_stores;
+    int m_meminst;
+    active_mask_t m_active_mask;
+    int m_pushed_in;
+    int m_pushed_out;
+  };	
+
+  struct ibuffer_entry_OOO {	
+    ibuffer_entry_OOO() {	
+      m_valid = false;	
+      m_inst = NULL;	
+      m_pc = NULL;
+      m_index = -1;	
+      m_index_full_OOO = -1;	
+      m_stores = 0;
+      m_meminst = 0;
+      control_check = 0;
+      m_control_inst_OOO = 0;
+      m_active_mask;
+      m_pushed_in_OOO = 0;
+      m_pushed_out = 0;
+      m_DEB_bit = 0;
+      control_check_in_order = 0;
+    }	
+    const warp_inst_t *m_inst;	
+    bool m_valid;	
+    int m_pc;	
+    int m_index;
+    int m_index_full_OOO;
+    int m_stores;
+    int m_meminst;
+    int control_check;
+    int control_check_in_order;
+    int m_control_inst_OOO;
+    active_mask_t m_active_mask;
+    int m_pushed_in_OOO;
+    int m_pushed_out;
+    int m_DEB_bit;
   };	
 
   struct replay_buffer_entry_mem {	
@@ -522,24 +1822,44 @@ class shd_warp_t {
       m_valid = false;	
       m_inst = NULL;	
       m_pc = NULL;	
+      m_pushed_in = 0;
+      m_pushed_out = 0;
     }	
     const warp_inst_t *m_inst;	
     bool m_valid;	
     int m_pc;	
+    int m_pushed_in;
+    int m_pushed_out;
   };
 
   warp_inst_t m_inst_at_barrier;
   ibuffer_entry m_ibuffer[IBUFFER_SIZE];
-  replay_buffer_entry replay_buffer[REPLAY_BUFFER_SIZE];	
+  ibuffer_entry m_ibuffer_streaming[IBUFFER_SIZE];
+  replay_buffer_entry replay_buffer[REPLAY_BUFFER_SIZE];
   replay_buffer_entry_mem replay_buffer_mem[REPLAY_BUFFER_SIZE_MEM];	
+  replay_buffer_entry_OOO replay_buffer_OOO[REPLAY_BUFFER_SIZE];
+  ibuffer_entry_OOO ibuffer_OOO[IBUFFER_SIZE];
   unsigned m_next;	
   unsigned replay_m_next;	
-  unsigned replay_m_fill_next;	
+  unsigned replay_m_fill_next;
+  unsigned ibuffer_m_fill_next_streaming;	
   unsigned replay_m_next_mem;	
+  unsigned ibuffer_m_next_streaming;
   unsigned replay_m_fill_next_mem;
-
   unsigned m_n_atomic;  // number of outstanding atomic operations
   bool m_membar;        // if true, warp is waiting at memory barrier
+  unsigned replay_buffer_head;
+  unsigned replay_buffer_tail;
+  unsigned ib_replay_buffer_tail_DEB_OOO;
+  unsigned replay_buffer_store_inst;
+  unsigned replay_buffer_memory_inst;
+
+  unsigned ibuffer_tail;
+  unsigned ibuffer_tail_full_OOO;
+  unsigned ibuffer_store_inst;
+  unsigned ibuffer_memory_inst;
+  unsigned ibuffer_control_inst;
+  unsigned ibuffer_inst_number;
 
   bool m_done_exit;  // true once thread exit has been registered for threads in
                      // this warp
@@ -554,6 +1874,9 @@ class shd_warp_t {
  public:
   unsigned int m_cdp_latency;
   bool m_cdp_dummy;
+  long long num_inst_exec;
+  unsigned num_warp_inst;
+  bool warp_inst_retired;
 };
 
 inline unsigned hw_tid_from_wid(unsigned wid, unsigned warp_size, unsigned i) {
@@ -632,14 +1955,22 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   // all the derived schedulers.  The scheduler's behaviour can be
   // modified by changing the contents of the m_next_cycle_prioritized_warps
   // list.
-  void cycle(int m_cluster_id);	
+  void cycle(int m_cluster_id, int sched_num);
+  void cycle_ibuffer_OOO(int m_cluster_id, int sched_num);
+  int replay_ib_inst(int m_cluster_id, int sched_num, int &warp_id_issued);
   bool canPushInst(const warp_inst_t *pI);
-  void verify_stall(int warp_id, exec_unit_type_t type);	
+  void verify_stall(int warp_id, exec_unit_type_t type,int m_cluster_id, int sched_num, int inst_loc);
+  void verify_stall_replay_OOO(int warp_id, exec_unit_type_t type,int m_cluster_id, int sched_num, int inst_loc, int replay_index, const warp_inst_t *pI);	
   bool replay_buffer_cycle(int m_cluster_id, int MEM_ON, int mem_data_stall_test, int comp_data_stall_test, int ibuffer_stall_test, int comp_str_stall_test ,	
-  int mem_str_stall_test, int other_stall_test1, int other_stall_test2, int other_stall_test3);	
+  int mem_str_stall_test, int other_stall_test1, int other_stall_test2, int other_stall_test3, bool push_DEB_stalled_warps);
+  bool replay_buffer_cycle_OOO(int m_cluster_id, int MEM_ON, int mem_data_stall_test, int comp_data_stall_test, int ibuffer_stall_test, int comp_str_stall_test ,	
+  int mem_str_stall_test, int other_stall_test1, int other_stall_test2, int other_stall_test3, bool push_DEB_stalled_warps, int sched_num);	
+  bool replay_buffer_cycle_DEB_dep(int m_cluster_id, int MEM_ON, int mem_data_stall_test, int comp_data_stall_test, int ibuffer_stall_test, int comp_str_stall_test ,	
+  int mem_str_stall_test, int other_stall_test1, int other_stall_test2, int other_stall_test3, bool push_DEB_stalled_warps);
   bool replay_buffer_cycle_mem(int m_cluster_id, int MEM_ON, int mem_data_stall_test, int comp_data_stall_test, int ibuffer_stall_test, int comp_str_stall_test ,	
   int mem_str_stall_test, int other_stall_test1, int other_stall_test2, int other_stall_test3);	
   void cycle_predefined();
+  void check_for_all_stalling_warps(int m_cluster_id, std::vector<const warp_inst_t *>& indep_instructions_push_all_stalling_inst);
 
   // These are some common ordering fucntions that the
   // higher order schedulers can take advantage of
@@ -684,6 +2015,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   // m_supervised_warps with their scheduling policies
   virtual void order_warps(int m_cluster_id) = 0;	
   virtual void replay_order_warps(int m_cluster_id, int MEM_ON) = 0;
+  virtual void order_warps_in_ibuffer(int m_cluster_id,std::vector<int>&warp_inst_order,int size,int warp_id) = 0;
 
   int get_schd_id() const { return m_id; }
 
@@ -753,6 +2085,7 @@ class fast_scheduler : public scheduler_unit {
   virtual ~fast_scheduler() {}	
   virtual void order_warps(int m_cluster_id);	
   virtual void replay_order_warps(int m_cluster_id, int MEM_ON);	
+  virtual void order_warps_in_ibuffer(int m_cluster_id,std::vector<int>&warp_inst_order,int size,int warp_id);
   virtual void done_adding_supervised_warps() {	
     m_last_supervised_issued = m_supervised_warps.end();	
     last_issued_from_input_mem = m_supervised_warps.end();	
@@ -775,6 +2108,7 @@ class lrr_scheduler : public scheduler_unit {
   virtual ~lrr_scheduler() {}
   virtual void order_warps(int m_cluster_id);	
   virtual void replay_order_warps(int m_cluster_id, int MEM_ON);
+  virtual void order_warps_in_ibuffer(int m_cluster_id,std::vector<int>&warp_inst_order,int size,int warp_id);
   virtual void done_adding_supervised_warps() {
     m_last_supervised_issued = m_supervised_warps.end();
   }
@@ -795,6 +2129,7 @@ class gto_scheduler : public scheduler_unit {
   virtual ~gto_scheduler() {}
   virtual void order_warps(int m_cluster_id);	
   virtual void replay_order_warps(int m_cluster_id, int MEM_ON);
+  virtual void order_warps_in_ibuffer(int m_cluster_id,std::vector<int>&warp_inst_order,int size,int warp_id);
   virtual void done_adding_supervised_warps() {
     m_last_supervised_issued = m_supervised_warps.begin();
   }
@@ -815,6 +2150,7 @@ class oldest_scheduler : public scheduler_unit {
   virtual ~oldest_scheduler() {}
   virtual void order_warps(int m_cluster_id);	
   virtual void replay_order_warps(int m_cluster_id, int MEM_ON);
+  virtual void order_warps_in_ibuffer(int m_cluster_id,std::vector<int>&warp_inst_order,int size,int warp_id);
   virtual void done_adding_supervised_warps() {
     m_last_supervised_issued = m_supervised_warps.begin();
   }
@@ -848,6 +2184,7 @@ class two_level_active_scheduler : public scheduler_unit {
   virtual ~two_level_active_scheduler() {}
   virtual void order_warps(int m_cluster_id);	
   virtual void replay_order_warps(int m_cluster_id, int MEM_ON);
+  virtual void order_warps_in_ibuffer(int m_cluster_id,std::vector<int>&warp_inst_order,int size,int warp_id);
   void add_supervised_warp_id(int i) {
     if (m_next_cycle_prioritized_warps.size() < m_max_active_warps) {
       m_next_cycle_prioritized_warps.push_back(&warp(i));
@@ -884,6 +2221,7 @@ class swl_scheduler : public scheduler_unit {
   virtual ~swl_scheduler() {}
   virtual void order_warps(int m_cluster_id);	
   virtual void replay_order_warps(int m_cluster_id, int MEM_ON);
+  virtual void order_warps_in_ibuffer(int m_cluster_id,std::vector<int>&warp_inst_order,int size,int warp_id);
   virtual void done_adding_supervised_warps() {
     m_last_supervised_issued = m_supervised_warps.begin();
   }
@@ -1636,6 +2974,8 @@ class ldst_unit : public pipelined_simd_unit {
   void get_L1C_sub_stats(struct cache_sub_stats &css) const;
   void get_L1T_sub_stats(struct cache_sub_stats &css) const;
 
+  unsigned m_sid;
+
  protected:
   ldst_unit(mem_fetch_interface *icnt,
             shader_core_mem_fetch_allocator *mf_allocator,
@@ -1673,7 +3013,6 @@ class ldst_unit : public pipelined_simd_unit {
   class mem_fetch_interface *m_icnt;
   shader_core_mem_fetch_allocator *m_mf_allocator;
   class shader_core_ctx *m_core;
-  unsigned m_sid;
   unsigned m_tpc;
 
   tex_cache *m_L1T;        // texture cache
@@ -2651,23 +3990,53 @@ class shader_core_ctx : public core_t {
   friend class LooseRoundRobbinScheduler;
   virtual void issue_warp(register_set &warp, const warp_inst_t *pI,	
                   const active_mask_t &active_mask, unsigned warp_id,	
-                  unsigned sch_id, int sid);	
+                  unsigned sch_id, int sid, int m_cluster_id);
+  virtual void issue_warp_ibuffer_OOO_in_order(register_set &warp, const warp_inst_t *pI,	
+                  const active_mask_t &active_mask, unsigned warp_id,	
+                  unsigned sch_id, int sid, int m_cluster_id, int index_loc, int index_num, int num_dist, int OOO_dep, 
+                  int stalls_between_issues, int num_inst_OOO);
+  virtual void issue_warp_OOO_sync_inst(register_set &warp, const warp_inst_t *pI,	
+                  const active_mask_t &active_mask, unsigned warp_id,	
+                  unsigned sch_id, int sid, int m_cluster_id,int replay_index, int replay_loc);
   virtual void issue_warp_push_in_replay(register_set &warp, const warp_inst_t *pI,	
                   const active_mask_t &active_mask, unsigned warp_id,	
-                  unsigned sch_id, int replay_buffer_idx, int pc, int sid, int MEM_ON);	
+                  unsigned sch_id, int replay_buffer_idx, int pc, int sid, int MEM_ON, int m_cluster_id);
+  virtual void issue_warp_update_SIMT_VALUES_ibuffer_OOO(const warp_inst_t *pI,	
+                  const active_mask_t &active_mask, unsigned warp_id,	
+                  unsigned sch_id, int pc, int sid, int MEM_ON, int m_cluster_id);
+  virtual void issue_warp_push_in_replay_OOO(register_set &warp, const warp_inst_t *pI,	
+                  const active_mask_t &active_mask, unsigned warp_id,	
+                  unsigned sch_id, int replay_buffer_idx, int pc, int sid, int MEM_ON, int m_cluster_id, int tail,int num_stores,int num_cycles);
+  virtual void issue_warp_push_in_DEB_IB_OOO(const warp_inst_t *pI,	
+                  const active_mask_t &active_mask, unsigned warp_id,	
+                  unsigned sch_id, int id, int pc, int sid, int m_cluster_id, int tail,int inst_loc, int inst_idx);	
   virtual void issue_warp_push_in_replay_mem(register_set &warp, const warp_inst_t *pI,	
                   const active_mask_t &active_mask, unsigned warp_id,	
                   unsigned sch_id, int replay_buffer_idx, int pc, int sid, int MEM_ON);	
   virtual void issue_warp_push_from_replay(register_set &warp, const warp_inst_t *pI,	
                   const active_mask_t &active_mask, unsigned warp_id,	
-                  unsigned sch_id, int sid, int MEM_ON);	
+                  unsigned sch_id, int sid, int MEM_ON, int m_cluster_id);	
+  virtual void issue_warp_push_from_replay_OOO(register_set &warp, const warp_inst_t *pI,	
+                  const active_mask_t &active_mask, unsigned warp_id,	
+                  unsigned sch_id, int sid, int MEM_ON, int m_cluster_id,int replay_index, int replay_loc);
+  virtual void issue_warp_push_from_replay_DEB_IB_OOO(register_set &warp, const warp_inst_t *pI,	
+                  const active_mask_t &active_mask, unsigned warp_id,	
+                  unsigned sch_id, int sid, int MEM_ON, int m_cluster_id,int replay_index, int replay_loc, int pc, int total_tail, int cycles_spent_in_ib,
+                                 int OOO_dep, int stalls_between_issues, int num_inst_OOO);
+  virtual void issue_warp_OOO(register_set &pipe_reg_set,const warp_inst_t *next_inst,
+                                 unsigned warp_id, unsigned sch_id, int sid, int MEM_ON, int m_cluster_id, int index_loc, int index_num);	                
   virtual void issue_warp_push_from_replay_mem(register_set &warp, const warp_inst_t *pI,	
                   const active_mask_t &active_mask, unsigned warp_id,	
-                  unsigned sch_id, int sid, int MEM_ON);	
+                  unsigned sch_id, int sid, int MEM_ON, int m_cluster_id);	
   virtual bool isSyncInst(const warp_inst_t *inst, int warp_num);
+  virtual bool isSyncInstMemory(const warp_inst_t *inst, int warp_num);
+  virtual bool isSyncInstNonMemory(const warp_inst_t *inst, int warp_num);
 
   virtual bool isSyncInstCore(const warp_inst_t *inst, int warp_num) = 0;	
+  virtual bool isSyncInstCoreMemory(const warp_inst_t *inst, int warp_num) = 0;	
+  virtual bool isSyncInstCoreNonMemory(const warp_inst_t *inst, int warp_num) = 0;	
   virtual void func_exec_inst_updatePCOnly(warp_inst_t &inst, int warp_num) = 0;	
+  virtual void update_SIMT_stack_OOO(const warp_inst_t *next_inst, unsigned warp_id);
   // executes the inst, does not update any PC information, executed when pushing instruction out 	
   // of OOO (replay) queue	
   virtual void func_exec_inst_ExecInstOnly(warp_inst_t &inst, int warp_num) = 0;
@@ -2699,6 +4068,9 @@ class shader_core_ctx : public core_t {
   virtual void get_pdom_stack_top_info(unsigned warp_id, const warp_inst_t *pI,
                                        unsigned *pc, unsigned *rpc) = 0;
   virtual const active_mask_t &get_active_mask(unsigned warp_id,
+                                               const warp_inst_t *pI) = 0;
+
+  virtual const active_mask_t &get_active_mask_test(unsigned warp_id,
                                                const warp_inst_t *pI) = 0;
 
   // Returns numbers of addresses in translated_addrs
@@ -2820,6 +4192,8 @@ class exec_shader_core_ctx : public shader_core_ctx {
                                              unsigned tid);
   virtual void func_exec_inst(warp_inst_t &inst);
   virtual bool isSyncInstCore(const warp_inst_t* inst, int warp_num);	
+  virtual bool isSyncInstCoreMemory(const warp_inst_t* inst, int warp_num);	
+  virtual bool isSyncInstCoreNonMemory(const warp_inst_t* inst, int warp_num);	
   // only updates if PC was last PC to execute for fetch to be correct 	
   // Executed when pushing instruction from normal queue to OOO (replay) queue	
   virtual void func_exec_inst_updatePCOnly(warp_inst_t &inst, int warp_num);	
@@ -2837,6 +4211,9 @@ class exec_shader_core_ctx : public shader_core_ctx {
   virtual void get_pdom_stack_top_info(unsigned warp_id, const warp_inst_t *pI,
                                        unsigned *pc, unsigned *rpc);
   virtual const active_mask_t &get_active_mask(unsigned warp_id,
+                                               const warp_inst_t *pI);
+
+  virtual const active_mask_t &get_active_mask_test(unsigned warp_id,
                                                const warp_inst_t *pI);
 };
 

@@ -32,6 +32,7 @@
 #include "gpu-sim.h"
 #include "hashing.h"
 #include "stat-tool.h"
+#include <iostream>
 
 // used to allocate memory that is large enough to adapt the changes in cache
 // size across kernels
@@ -1055,6 +1056,7 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time) {
   assert(e != m_extra_mf_fields.end());
   assert(e->second.m_valid);
   mf->set_data_size(e->second.m_data_size);
+  //std::cout <<"SETTING_M_ADDR_1 "<<e->second.m_addr<<"\n";
   mf->set_addr(e->second.m_addr);
   if (m_config.m_alloc_policy == ON_MISS)
     m_tag_array->fill(e->second.m_cache_index, time, mf);
@@ -1142,6 +1144,8 @@ void baseline_cache::send_read_request(new_addr_type addr,
     m_extra_mf_fields[mf] = extra_mf_fields(
         mshr_addr, mf->get_addr(), cache_index, mf->get_data_size(), m_config);
     mf->set_data_size(m_config.get_atom_sz());
+    
+    //std::cout <<"SETTING_M_ADDR_2 "<<mshr_addr<<"\n";
     mf->set_addr(mshr_addr);
     m_miss_queue.push_back(mf);
     mf->set_status(m_miss_queue_status, time);

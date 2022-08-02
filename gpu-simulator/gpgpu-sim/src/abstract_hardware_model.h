@@ -436,9 +436,10 @@ class simt_stack {
   void launch(address_type start_pc, const simt_mask_t &active_mask);
   void update(simt_mask_t &thread_done, addr_vector_t &next_pc,	
               address_type recvg_pc, op_type next_inst_op,	
-              unsigned next_inst_size, address_type next_inst_pc, int warpId);
+              unsigned next_inst_size, address_type next_inst_pc, int warpId,int sch_id,int m_cluster_id,int sid);
 
   const simt_mask_t &get_active_mask() const;
+  const simt_mask_t &get_active_mask_test() const;
   void get_pdom_stack_top_info(unsigned *pc, unsigned *rpc) const;
   unsigned get_rp() const;
   void print(FILE *fp) const;
@@ -963,6 +964,12 @@ class inst_t {
             memory_op == memory_store);
   }
 
+  bool is_ret_exit() const {
+    return (op == RET_OPS || op == EXIT_OPS);
+  }
+
+  int get_op() const { return op; }
+
   bool is_fp() const { return ((sp_op == FP__OP));}    //VIJAY
   bool is_fpdiv() const { return ((sp_op == FP_DIV_OP));} 
   bool is_fpmul() const { return ((sp_op == FP_MUL_OP));} 
@@ -1059,11 +1066,16 @@ class warp_inst_t : public inst_t {
     m_is_cdp = 0;
     should_do_atomic = true;
     m_sid = -1;
+    m_wid = -1;
+    m_checked_for_dep = 0;
   }
   virtual ~warp_inst_t() {}
 
   unsigned get_sid() const { return m_sid; }	
   void set_sid(int sid) { m_sid = sid; }
+
+  unsigned get_wid() const { return m_wid; }	
+  void set_wid(int wid) { m_wid = wid; }
 
   // modifiers
   void broadcast_barrier_reduction(const active_mask_t &access_mask);
@@ -1074,12 +1086,22 @@ class warp_inst_t : public inst_t {
   void issue(const active_mask_t &mask, unsigned warp_id,
              unsigned long long cycle, int dynamic_warp_id, int sch_id);
 
+  active_mask_t get_active_mask();
+
   void issue_push_to_replay(const active_mask_t &mask, unsigned warp_id,	
-             unsigned long long cycle, int dynamic_warp_id, int sch_id);	
+             unsigned long long cycle, int dynamic_warp_id, int sch_id);
+
+  void issue_push_SIMT_UPDATE_ibuffer_OOO(const active_mask_t &mask, unsigned warp_id,	
+             unsigned long long cycle, int dynamic_warp_id, int sch_id);
+
   void issue_push_from_replay(const active_mask_t &mask, unsigned warp_id,	
              unsigned long long cycle, int dynamic_warp_id, int sch_id);
 
+  void issue_push_from_ibuffer_OOO(unsigned warp_id,	
+             unsigned long long cycle, int dynamic_warp_id, int sch_id);
+
   const active_mask_t &get_active_mask() const { return m_warp_active_mask; }
+  const active_mask_t &get_active_mask_test() const { return m_warp_active_mask; }
   void completed(unsigned long long cycle)
       const;  // stat collection: called when the instruction is completed
 
@@ -1213,9 +1235,12 @@ class warp_inst_t : public inst_t {
   void set_cycle_issued_warp(int cycle) { warp_issued_cycle = cycle; }	
   int get_cycle_issued_warp() const { return warp_issued_cycle; }
 
+  unsigned m_checked_for_dep;
+
  protected:
   unsigned m_uid;
   unsigned m_sid;
+  unsigned m_wid;
   bool m_empty;
   bool m_cache_hit;
   unsigned long long issue_cycle;
@@ -1319,10 +1344,12 @@ class core_t {
   // of OOO (replay) queue	
   void execute_warp_inst_t_ExecInstOnly(warp_inst_t &inst, unsigned warpId = (unsigned)-1);	
   bool isSyncInstExec(const warp_inst_t *inst, int warp_num);
+  bool isSyncInstExecNonMemory(const warp_inst_t *inst, int warp_num);
+  bool isSyncInstExecMemory(const warp_inst_t *inst, int warp_num);
 
   bool ptx_thread_done(unsigned hw_thread_id) const;
   bool ptx_thread_done_check(unsigned hw_thread_id) const;
-  virtual void updateSIMTStack(unsigned warpId, warp_inst_t *inst);
+  virtual void updateSIMTStack(unsigned warpId, warp_inst_t *inst,int sch_id,int m_cluster_id,int sid);
   void initilizeSIMTStack(unsigned warp_count, unsigned warps_size);
   void deleteSIMTStack();
   warp_inst_t getExecuteWarp(unsigned warpId);

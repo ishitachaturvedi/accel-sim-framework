@@ -457,6 +457,7 @@ InstFetchU::InstFetchU(ParseXML* XML_interface, int ithCore_,
                 (ID_inst->area.get_area() + ID_operand->area.get_area() +
                  ID_misc->area.get_area()) *
                     coredynp.decodeW);
+  cout <<"InstFetchU AREA1: "<< area.get_area()<<std::endl;
 }
 
 BranchPredictor::BranchPredictor(ParseXML* XML_interface, int ithCore_,
@@ -626,6 +627,7 @@ BranchPredictor::BranchPredictor(ParseXML* XML_interface, int ithCore_,
                      RAS->local_result.area * coredynp.num_hthreads);
   area.set_area(area.get_area() +
                 RAS->local_result.area * coredynp.num_hthreads);
+  cout <<"BranchPredictor AREA2: "<< area.get_area()<<std::endl;
 }
 
 SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
@@ -679,8 +681,8 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
     interface_ip.obj_func_leak_power = 0;
     interface_ip.obj_func_cycle_t = 1;
     interface_ip.num_rw_ports = 0;
-    interface_ip.num_rd_ports = coredynp.peak_issueW;
-    interface_ip.num_wr_ports = coredynp.peak_issueW;
+    interface_ip.num_rd_ports = 2 * coredynp.peak_issueW;
+    interface_ip.num_wr_ports = 2 * coredynp.peak_issueW;
     interface_ip.num_se_rd_ports = 0;
     interface_ip.num_search_ports = coredynp.peak_issueW;
     int_inst_window = new ArrayST(&interface_ip, "InstFetchQueue", Core_device,
@@ -690,8 +692,57 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
                                        coredynp.num_pipelines);
     area.set_area(area.get_area() +
                   int_inst_window->local_result.area * coredynp.num_pipelines);
+    cout <<"TOTAL AREA3A: "<< area.get_area()<<std::endl;
     // output_data_csv(iRS.RS.local_result);
     Iw_height = int_inst_window->local_result.cache_ht;
+
+    // TEST
+
+    tag = int(log2(XML->sys.core[ithCore].number_hardware_threads) *
+              coredynp.perThreadState);  // This is the normal thread state bits
+                                         // based on Niagara Design
+    data = XML->sys.core[ithCore].instruction_length;
+    // NOTE: x86 inst can be very lengthy, up to 15B. Source: Intel® 64 and
+    // IA-32 Architectures Software Developer’s Manual
+    interface_ip.is_cache = true;
+    interface_ip.pure_cam = false;
+    interface_ip.pure_ram = false;
+    interface_ip.line_sz = int(ceil(data / 8.0));
+    interface_ip.specific_tag = 1;
+    interface_ip.tag_w = tag;
+    interface_ip.cache_sz =
+        XML->sys.core[ithCore].instruction_window_size * interface_ip.line_sz >
+                64
+            ? XML->sys.core[ithCore].instruction_window_size *
+                  interface_ip.line_sz
+            : 64;
+    interface_ip.assoc = 0;
+    interface_ip.nbanks = 1;
+    interface_ip.out_w = interface_ip.line_sz * 8;
+    interface_ip.access_mode = 1;
+    interface_ip.throughput = 1.0 / clockRate;
+    interface_ip.latency = 1.0 / clockRate;
+    interface_ip.obj_func_dyn_energy = 0;
+    interface_ip.obj_func_dyn_power = 0;
+    interface_ip.obj_func_leak_power = 0;
+    interface_ip.obj_func_cycle_t = 1;
+    interface_ip.num_rw_ports = 0;
+    interface_ip.num_rd_ports = coredynp.peak_issueW;
+    interface_ip.num_wr_ports = coredynp.peak_issueW;
+    interface_ip.num_se_rd_ports = 0;
+    interface_ip.num_search_ports = coredynp.peak_issueW;
+
+    cout <<"XML->sys.core[ithCore].instruction_window_size "<<XML->sys.core[ithCore].instruction_window_size<<"\n";
+    cout <<"interface_ip.num_rd_ports "<<interface_ip.num_rd_ports<<"\n";
+    cout <<"interface_ip.line_sz "<<interface_ip.line_sz<<"\n";
+    // int_inst_window = new ArrayST(&interface_ip, "InstFetchQueue_TEST", Core_device,
+    //                               coredynp.opt_local, coredynp.core_ty);
+    // int_inst_window->area.set_area(int_inst_window->area.get_area() +
+    //                                int_inst_window->local_result.area *
+    //                                    coredynp.num_pipelines);
+    // area.set_area(area.get_area() +
+    //               int_inst_window->local_result.area * coredynp.num_pipelines);
+    cout <<"TOTAL AREA TEST: "<< (int_inst_window->area.get_area() + int_inst_window->local_result.area * coredynp.num_pipelines) <<std::endl;
 
     /*
      * selection logic
@@ -776,6 +827,7 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
                                        coredynp.num_pipelines);
     area.set_area(area.get_area() +
                   int_inst_window->local_result.area * coredynp.num_pipelines);
+    cout <<"TOTAL AREA3B: "<< area.get_area()<<std::endl;
     Iw_height = int_inst_window->local_result.cache_ht;
     // FU inst window
     if (coredynp.scheu_ty == PhysicalRegFile) {
@@ -826,6 +878,7 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
     area.set_area(area.get_area() + fp_inst_window->local_result.area *
                                         coredynp.num_fp_pipelines);
     fp_Iw_height = fp_inst_window->local_result.cache_ht;
+    cout <<"TOTAL AREA3C: "<< area.get_area()<<std::endl;
 
     if (XML->sys.core[ithCore].ROB_size > 0) {
       /*
@@ -893,6 +946,7 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
                          ROB->local_result.area * coredynp.num_pipelines);
       area.set_area(area.get_area() +
                     ROB->local_result.area * coredynp.num_pipelines);
+      cout <<"TOTAL AREA3D: "<< area.get_area()<<std::endl;
       ROB_height = ROB->local_result.cache_ht;
     }
 
@@ -900,6 +954,7 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
         is_default, XML->sys.core[ithCore].instruction_window_size,
         coredynp.peak_issueW, &interface_ip, Core_device, coredynp.core_ty);
   }
+  cout <<"SchedulerU AREA3: "<< area.get_area()<<std::endl;
 }
 
 LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_,
@@ -1131,6 +1186,7 @@ LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_,
     sharedmemory.area.set_area(sharedmemory.area.get_area() +
                                sharedmemory.wbb->local_result.area);
     area.set_area(area.get_area() + sharedmemory.wbb->local_result.area);
+    cout <<"TOTAL AREA4: "<< area.get_area()<<std::endl;
     // output_data_csv(sharedmemory.wbb.local_result);
   }
 
@@ -1782,6 +1838,7 @@ LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_,
         (LSQ->local_result.cache_ht + LoadQ->local_result.cache_ht) *
         sqrt(cdb_overhead); /*XML->sys.core[ithCore].number_hardware_threads*/
   }
+  cout <<"LoadStoreU AREA5: "<< area.get_area()<<std::endl;
 }
 
 MemManU::MemManU(ParseXML* XML_interface, int ithCore_,
@@ -1882,6 +1939,7 @@ MemManU::MemManU(ParseXML* XML_interface, int ithCore_,
                      coredynp.core_ty);
   dtlb->area.set_area(dtlb->area.get_area() + dtlb->local_result.area);
   area.set_area(area.get_area() + dtlb->local_result.area);
+  cout <<"MemManU6: "<< area.get_area()<<std::endl;
   // output_data_csv(dtlb.tlb.local_result);
 }
 //#define FERMI
@@ -2127,6 +2185,7 @@ RegFU::RegFU(ParseXML* XML_interface, int ithCore_,
                   RFWIN->local_result.area * coredynp.num_pipelines);
     // output_data_csv(RFWIN.RF.local_result);
   }
+  cout <<"RegFU AREA7: "<< area.get_area()<<std::endl;
 }
 
 EXECU::EXECU(ParseXML* XML_interface, int ithCore_,
@@ -2355,6 +2414,7 @@ EXECU::EXECU(ParseXML* XML_interface, int ithCore_,
 
   } /* else */
   area.set_area(area.get_area() /*+ bypass.area.get_area()*/);
+  cout <<"EXECU AREA8: "<< area.get_area()<<std::endl;
 }
 
 RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_,
@@ -2913,6 +2973,7 @@ RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_,
     fdcl = new dep_resource_conflict_check(&interface_ip, coredynp,
                                            coredynp.phy_freg_width);
   }
+  cout <<"RENAMINGU AREA9: "<< area.get_area()<<std::endl;
 }
 
 Core::Core(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_)
@@ -3014,6 +3075,7 @@ Core::Core(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_)
   //  clockNetwork.start_wiring_level =5;//toplevel metal
   //  clockNetwork.num_regs           = corepipe.tot_stage_vector;
   //  clockNetwork.optimize_wire();
+  cout <<"Core AREA10: "<< area.get_area()<<std::endl;
 }
 
 void BranchPredictor::computeEnergy(bool is_tdp) {

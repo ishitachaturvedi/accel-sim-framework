@@ -1996,7 +1996,7 @@ partiton_level_parallism_util =       1.8846
 partiton_level_parallism_util_total  =       1.9192
 L2_BW  =       2.7678 GB/Sec
 L2_BW_total  =       1.8877 GB/Sec
-gpu_total_sim_rate=17281
+gpu_total_sim_rate=21601
 
 ========= Core cache stats =========
 L1I_cache:
@@ -3595,10 +3595,10 @@ Reply_Network_out_buffer_avg_util =       0.0009
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 5 sec (5 sec)
-gpgpu_simulation_rate = 17281 (inst/sec)
-gpgpu_simulation_rate = 3403 (cycle/sec)
-gpgpu_silicon_slowdown = 559800x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 4 sec (4 sec)
+gpgpu_simulation_rate = 21601 (inst/sec)
+gpgpu_simulation_rate = 4254 (cycle/sec)
+gpgpu_silicon_slowdown = 447813x
 launching memcpy command : MemcpyHtoD,0x00007f2ec5727000,1
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-3.traceg
 -kernel name = _Z6KernelP4NodePiPbS2_S2_S1_i
@@ -3654,7 +3654,7 @@ partiton_level_parallism_util =       1.2727
 partiton_level_parallism_util_total  =       1.5203
 L2_BW  =       3.2436 GB/Sec
 L2_BW_total  =       2.3965 GB/Sec
-gpu_total_sim_rate=14338
+gpu_total_sim_rate=18435
 
 ========= Core cache stats =========
 L1I_cache:
@@ -5253,10 +5253,10 @@ Reply_Network_out_buffer_avg_util =       0.0012
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 9 sec (9 sec)
-gpgpu_simulation_rate = 14338 (inst/sec)
-gpgpu_simulation_rate = 3027 (cycle/sec)
-gpgpu_silicon_slowdown = 629335x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 7 sec (7 sec)
+gpgpu_simulation_rate = 18435 (inst/sec)
+gpgpu_simulation_rate = 3891 (cycle/sec)
+gpgpu_silicon_slowdown = 489591x
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-4.traceg
 -kernel name = _Z7Kernel2PbS_S_S_i
 -kernel id = 4
@@ -5311,7 +5311,7 @@ partiton_level_parallism_util =       1.9778
 partiton_level_parallism_util_total  =       1.6385
 L2_BW  =       4.4335 GB/Sec
 L2_BW_total  =       2.7749 GB/Sec
-gpu_total_sim_rate=15903
+gpu_total_sim_rate=21867
 
 ========= Core cache stats =========
 L1I_cache:
@@ -6910,10 +6910,10 @@ Reply_Network_out_buffer_avg_util =       0.0013
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 11 sec (11 sec)
-gpgpu_simulation_rate = 15903 (inst/sec)
-gpgpu_simulation_rate = 3041 (cycle/sec)
-gpgpu_silicon_slowdown = 626438x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 8 sec (8 sec)
+gpgpu_simulation_rate = 21867 (inst/sec)
+gpgpu_simulation_rate = 4182 (cycle/sec)
+gpgpu_silicon_slowdown = 455523x
 launching memcpy command : MemcpyHtoD,0x00007f2ec5727000,1
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-5.traceg
 -kernel name = _Z6KernelP4NodePiPbS2_S2_S1_i
@@ -6969,7 +6969,7 @@ partiton_level_parallism_util =       1.3490
 partiton_level_parallism_util_total  =       1.4609
 L2_BW  =       9.2743 GB/Sec
 L2_BW_total  =       4.3359 GB/Sec
-gpu_total_sim_rate=15057
+gpu_total_sim_rate=20533
 
 ========= Core cache stats =========
 L1I_cache:
@@ -8568,10 +8568,10 @@ Reply_Network_out_buffer_avg_util =       0.0021
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 15 sec (15 sec)
-gpgpu_simulation_rate = 15057 (inst/sec)
-gpgpu_simulation_rate = 2935 (cycle/sec)
-gpgpu_silicon_slowdown = 649063x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 11 sec (11 sec)
+gpgpu_simulation_rate = 20533 (inst/sec)
+gpgpu_simulation_rate = 4003 (cycle/sec)
+gpgpu_silicon_slowdown = 475893x
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-6.traceg
 -kernel name = _Z7Kernel2PbS_S_S_i
 -kernel id = 6
@@ -8626,7 +8626,7 @@ partiton_level_parallism_util =       2.7401
 partiton_level_parallism_util_total  =       1.6039
 L2_BW  =       6.6182 GB/Sec
 L2_BW_total  =       4.6054 GB/Sec
-gpu_total_sim_rate=16216
+gpu_total_sim_rate=21206
 
 ========= Core cache stats =========
 L1I_cache:
@@ -10225,10 +10225,10 @@ Reply_Network_out_buffer_avg_util =       0.0022
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 17 sec (17 sec)
-gpgpu_simulation_rate = 16216 (inst/sec)
-gpgpu_simulation_rate = 2937 (cycle/sec)
-gpgpu_silicon_slowdown = 648621x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 13 sec (13 sec)
+gpgpu_simulation_rate = 21206 (inst/sec)
+gpgpu_simulation_rate = 3840 (cycle/sec)
+gpgpu_silicon_slowdown = 496093x
 launching memcpy command : MemcpyHtoD,0x00007f2ec5727000,1
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-7.traceg
 -kernel name = _Z6KernelP4NodePiPbS2_S2_S1_i
@@ -10284,7 +10284,7 @@ partiton_level_parallism_util =       2.2288
 partiton_level_parallism_util_total  =       1.9589
 L2_BW  =      36.3817 GB/Sec
 L2_BW_total  =       9.9254 GB/Sec
-gpu_total_sim_rate=17662
+gpu_total_sim_rate=23181
 
 ========= Core cache stats =========
 L1I_cache:
@@ -11885,10 +11885,10 @@ Reply_Network_out_buffer_avg_util =       0.0048
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 21 sec (21 sec)
-gpgpu_simulation_rate = 17662 (inst/sec)
-gpgpu_simulation_rate = 2855 (cycle/sec)
-gpgpu_silicon_slowdown = 667250x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 16 sec (16 sec)
+gpgpu_simulation_rate = 23181 (inst/sec)
+gpgpu_simulation_rate = 3748 (cycle/sec)
+gpgpu_silicon_slowdown = 508271x
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-8.traceg
 -kernel name = _Z7Kernel2PbS_S_S_i
 -kernel id = 8
@@ -11943,7 +11943,7 @@ partiton_level_parallism_util =       2.8035
 partiton_level_parallism_util_total  =       1.9982
 L2_BW  =       6.7169 GB/Sec
 L2_BW_total  =       9.6388 GB/Sec
-gpu_total_sim_rate=18971
+gpu_total_sim_rate=25667
 
 ========= Core cache stats =========
 L1I_cache:
@@ -13544,10 +13544,10 @@ Reply_Network_out_buffer_avg_util =       0.0047
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 23 sec (23 sec)
-gpgpu_simulation_rate = 18971 (inst/sec)
-gpgpu_simulation_rate = 2863 (cycle/sec)
-gpgpu_silicon_slowdown = 665385x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 17 sec (17 sec)
+gpgpu_simulation_rate = 25667 (inst/sec)
+gpgpu_simulation_rate = 3873 (cycle/sec)
+gpgpu_silicon_slowdown = 491866x
 launching memcpy command : MemcpyHtoD,0x00007f2ec5727000,1
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-9.traceg
 -kernel name = _Z6KernelP4NodePiPbS2_S2_S1_i
@@ -13603,7 +13603,7 @@ partiton_level_parallism_util =       3.6444
 partiton_level_parallism_util_total  =       2.7093
 L2_BW  =      80.4082 GB/Sec
 L2_BW_total  =      19.2688 GB/Sec
-gpu_total_sim_rate=23205
+gpu_total_sim_rate=30589
 
 ========= Core cache stats =========
 L1I_cache:
@@ -15204,10 +15204,10 @@ Reply_Network_out_buffer_avg_util =       0.0093
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 29 sec (29 sec)
-gpgpu_simulation_rate = 23205 (inst/sec)
-gpgpu_simulation_rate = 2628 (cycle/sec)
-gpgpu_silicon_slowdown = 724885x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 22 sec (22 sec)
+gpgpu_simulation_rate = 30589 (inst/sec)
+gpgpu_simulation_rate = 3464 (cycle/sec)
+gpgpu_silicon_slowdown = 549942x
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-10.traceg
 -kernel name = _Z7Kernel2PbS_S_S_i
 -kernel id = 10
@@ -15262,7 +15262,7 @@ partiton_level_parallism_util =       3.5955
 partiton_level_parallism_util_total  =       2.7271
 L2_BW  =       6.9211 GB/Sec
 L2_BW_total  =      18.4185 GB/Sec
-gpu_total_sim_rate=24859
+gpu_total_sim_rate=32424
 
 ========= Core cache stats =========
 L1I_cache:
@@ -16863,10 +16863,10 @@ Reply_Network_out_buffer_avg_util =       0.0089
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 30 sec (30 sec)
-gpgpu_simulation_rate = 24859 (inst/sec)
-gpgpu_simulation_rate = 2728 (cycle/sec)
-gpgpu_silicon_slowdown = 698313x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 23 sec (23 sec)
+gpgpu_simulation_rate = 32424 (inst/sec)
+gpgpu_simulation_rate = 3559 (cycle/sec)
+gpgpu_silicon_slowdown = 535262x
 launching memcpy command : MemcpyHtoD,0x00007f2ec5727000,1
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-11.traceg
 -kernel name = _Z6KernelP4NodePiPbS2_S2_S1_i
@@ -16922,7 +16922,7 @@ partiton_level_parallism_util =       2.7479
 partiton_level_parallism_util_total  =       2.7313
 L2_BW  =      38.8582 GB/Sec
 L2_BW_total  =      20.5576 GB/Sec
-gpu_total_sim_rate=27007
+gpu_total_sim_rate=36010
 
 ========= Core cache stats =========
 L1I_cache:
@@ -18523,10 +18523,10 @@ Reply_Network_out_buffer_avg_util =       0.0099
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 36 sec (36 sec)
-gpgpu_simulation_rate = 27007 (inst/sec)
-gpgpu_simulation_rate = 2539 (cycle/sec)
-gpgpu_silicon_slowdown = 750295x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 27 sec (27 sec)
+gpgpu_simulation_rate = 36010 (inst/sec)
+gpgpu_simulation_rate = 3386 (cycle/sec)
+gpgpu_silicon_slowdown = 562610x
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-12.traceg
 -kernel name = _Z7Kernel2PbS_S_S_i
 -kernel id = 12
@@ -18581,7 +18581,7 @@ partiton_level_parallism_util =       3.5949
 partiton_level_parallism_util_total  =       2.7434
 L2_BW  =       6.1732 GB/Sec
 L2_BW_total  =      19.7261 GB/Sec
-gpu_total_sim_rate=27588
+gpu_total_sim_rate=36455
 
 ========= Core cache stats =========
 L1I_cache:
@@ -20182,10 +20182,10 @@ Reply_Network_out_buffer_avg_util =       0.0095
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 37 sec (37 sec)
-gpgpu_simulation_rate = 27588 (inst/sec)
-gpgpu_simulation_rate = 2622 (cycle/sec)
-gpgpu_silicon_slowdown = 726544x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 28 sec (28 sec)
+gpgpu_simulation_rate = 36455 (inst/sec)
+gpgpu_simulation_rate = 3465 (cycle/sec)
+gpgpu_silicon_slowdown = 549783x
 launching memcpy command : MemcpyHtoD,0x00007f2ec5727000,1
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-13.traceg
 -kernel name = _Z6KernelP4NodePiPbS2_S2_S1_i
@@ -20241,7 +20241,7 @@ partiton_level_parallism_util =       2.5443
 partiton_level_parallism_util_total  =       2.7344
 L2_BW  =      10.2272 GB/Sec
 L2_BW_total  =      18.9893 GB/Sec
-gpu_total_sim_rate=26906
+gpu_total_sim_rate=35874
 
 ========= Core cache stats =========
 L1I_cache:
@@ -21842,10 +21842,10 @@ Reply_Network_out_buffer_avg_util =       0.0092
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 40 sec (40 sec)
-gpgpu_simulation_rate = 26906 (inst/sec)
-gpgpu_simulation_rate = 2629 (cycle/sec)
-gpgpu_silicon_slowdown = 724610x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 30 sec (30 sec)
+gpgpu_simulation_rate = 35874 (inst/sec)
+gpgpu_simulation_rate = 3506 (cycle/sec)
+gpgpu_silicon_slowdown = 543354x
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-14.traceg
 -kernel name = _Z7Kernel2PbS_S_S_i
 -kernel id = 14
@@ -21900,7 +21900,7 @@ partiton_level_parallism_util =       4.1212
 partiton_level_parallism_util_total  =       2.7383
 L2_BW  =       1.5087 GB/Sec
 L2_BW_total  =      18.1215 GB/Sec
-gpu_total_sim_rate=26698
+gpu_total_sim_rate=35041
 
 ========= Core cache stats =========
 L1I_cache:
@@ -23501,10 +23501,10 @@ Reply_Network_out_buffer_avg_util =       0.0087
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 42 sec (42 sec)
-gpgpu_simulation_rate = 26698 (inst/sec)
-gpgpu_simulation_rate = 2635 (cycle/sec)
-gpgpu_silicon_slowdown = 722960x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 32 sec (32 sec)
+gpgpu_simulation_rate = 35041 (inst/sec)
+gpgpu_simulation_rate = 3459 (cycle/sec)
+gpgpu_silicon_slowdown = 550737x
 launching memcpy command : MemcpyHtoD,0x00007f2ec5727000,1
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-15.traceg
 -kernel name = _Z6KernelP4NodePiPbS2_S2_S1_i
@@ -23560,7 +23560,7 @@ partiton_level_parallism_util =       4.1515
 partiton_level_parallism_util_total  =       2.7422
 L2_BW  =       1.3449 GB/Sec
 L2_BW_total  =      17.2303 GB/Sec
-gpu_total_sim_rate=26416
+gpu_total_sim_rate=35222
 
 ========= Core cache stats =========
 L1I_cache:
@@ -25161,10 +25161,10 @@ Reply_Network_out_buffer_avg_util =       0.0083
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 44 sec (44 sec)
-gpgpu_simulation_rate = 26416 (inst/sec)
-gpgpu_simulation_rate = 2656 (cycle/sec)
-gpgpu_silicon_slowdown = 717243x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 33 sec (33 sec)
+gpgpu_simulation_rate = 35222 (inst/sec)
+gpgpu_simulation_rate = 3542 (cycle/sec)
+gpgpu_silicon_slowdown = 537831x
 Processing kernel ../../../../hw_run/rodinia_2.0-ft/11.0/bfs-rodinia-2.0-ft/__data_graph4096_txt___data_graph4096_result_txt/traces/kernel-16.traceg
 -kernel name = _Z7Kernel2PbS_S_S_i
 -kernel id = 16
@@ -25219,7 +25219,7 @@ partiton_level_parallism_util =       5.1200
 partiton_level_parallism_util_total  =       2.7473
 L2_BW  =       1.4753 GB/Sec
 L2_BW_total  =      16.5484 GB/Sec
-gpu_total_sim_rate=26247
+gpu_total_sim_rate=35511
 
 ========= Core cache stats =========
 L1I_cache:
@@ -26820,10 +26820,10 @@ Reply_Network_out_buffer_avg_util =       0.0080
 ----------------------------END-of-Interconnect-DETAILS-------------------------
 
 
-gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 46 sec (46 sec)
-gpgpu_simulation_rate = 26247 (inst/sec)
-gpgpu_simulation_rate = 2656 (cycle/sec)
-gpgpu_silicon_slowdown = 717243x
+gpgpu_simulation_time = 0 days, 0 hrs, 0 min, 34 sec (34 sec)
+gpgpu_simulation_rate = 35511 (inst/sec)
+gpgpu_simulation_rate = 3593 (cycle/sec)
+gpgpu_silicon_slowdown = 530197x
 TOTAL CYCLES TAKEN 122190
 tot_inst_exec 154856
 ICNT_TO_MEM_count 0 ICNT_TO_MEM_cycles 0
