@@ -97,6 +97,7 @@ class mem_fetch {
   unsigned get_wid() const { return m_wid; }
   bool istexture() const;
   bool isconst() const;
+  void set_inst_addr();
   enum mf_type get_type() const { return m_type; }
   bool isatomic() const;
 
@@ -161,6 +162,7 @@ class mem_fetch {
   addrdec_t m_raw_addr;  // raw physical address (i.e., decoded DRAM
                          // chip-row-bank-column address)
   enum mf_type m_type;
+  new_addr_type m_addr;
 
   // statistics
   unsigned

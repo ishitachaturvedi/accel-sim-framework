@@ -5,6 +5,8 @@ using std::vector;
 
 extern long long cycle_num;
 extern bool replay_stall;
+extern long total_mem_inst;
+extern long total_times_in_cycle;
 //initialise vector of vectors as stallData[Warp #][stall #]
 extern vector<vector<vector<int>>>stallData;
 extern vector<vector<int>>act_warp;
@@ -16,6 +18,15 @@ extern vector<unsigned>warp_inst_num;
 extern vector<int>warps_cannot_be_issued;
 extern vector<int> indep_pc_num_push_all_stalling_inst;
 extern vector<int>stall_consolidated;
+
+extern int time_bw_inst;
+extern int reached_barrier;
+
+extern int tot_mem_dep_checks;
+extern int tot_mem_dep_true;
+extern int tot_mem_dep_false;
+extern int tot_issues_ILP;
+extern int tot_issues_OOO;
 
 extern std::ofstream write_warps;
 extern std::ofstream test_write_warps;
@@ -42,10 +53,10 @@ extern long long  comp_data_stall;
 extern long long  ibuffer_stall;
 extern long long  comp_str_stall;
 extern long long  mem_str_stall;
-extern long long  other_stall1;
-extern long long  other_stall2;
-extern long long  other_stall3;
-extern long long  mem_data_stall_kernel;
+extern long long  waiting_warp;
+extern long long  idle;
+extern long long  SM_num;
+extern long long  tot_inst_OOO_because_dep;
 extern long long  comp_data_stall_kernel;
 extern long long  ibuffer_stall_kernel;
 extern long long  comp_str_stall_kernel;
@@ -152,7 +163,7 @@ extern long long ICNT_TO_SHADER_cycles;
 extern long long ICNT_TO_SHADER_count_kernel;
 extern long long ICNT_TO_SHADER_cycles_kernel;
 extern bool print_stall_data;
-extern long long SHADER_ICNT_PUSH;
+extern long SHADER_ICNT_PUSH;
 extern long long mem_inst_issue;
 extern long long comp_inst_issue;
 extern long long issued_inst_count;
@@ -279,7 +290,7 @@ extern long long sync_inst_ibuffer_coll;
 extern long long mem_inst_collision;
 extern long long mem_inst_ibuffer_coll;
 
-extern long long tot_inst_stuck;
+extern long long tot_in_order_stall;
 extern long long memory_inst_stuck;
 extern long long non_memory_inst_stuck;
 extern long long load_inst_stuck;

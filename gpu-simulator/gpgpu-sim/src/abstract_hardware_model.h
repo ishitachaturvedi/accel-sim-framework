@@ -939,12 +939,16 @@ class inst_t {
     num_regs = 0;
     memset(out, 0, sizeof(unsigned));
     memset(in, 0, sizeof(unsigned));
+    memset(addr_keeper, 0, sizeof(unsigned));
+    addr_keeper_idx = 0;
+    addr_met = 0;
     is_vectorin = 0;
     is_vectorout = 0;
     space = memory_space_t();
     cache_op = CACHE_UNDEFINED;
     latency = 1;
     initiation_interval = 1;
+    addr = NULL;
     for (unsigned i = 0; i < MAX_REG_OPERANDS; i++) {
       arch_reg.src[i] = -1;
       arch_reg.dst[i] = -1;
@@ -1015,6 +1019,9 @@ class inst_t {
                                   // return address
 
   unsigned out[8];
+  unsigned addr_keeper[100];
+  int addr_keeper_idx = 0;
+  int addr_met;
   unsigned outcount;
   unsigned in[24];
   unsigned incount;
@@ -1035,6 +1042,7 @@ class inst_t {
   unsigned data_size;  // what is the size of the word being operated on?
   memory_space_t space;
   cache_operator_type cache_op;
+  new_addr_type addr;
 
  protected:
   bool m_decoded;
@@ -1068,6 +1076,10 @@ class warp_inst_t : public inst_t {
     m_sid = -1;
     m_wid = -1;
     m_checked_for_dep = 0;
+    m_stalled_cycles = 0;
+    m_inst_number = -1;
+    m_cluster_id = -1;
+    m_pc = -1;
   }
   virtual ~warp_inst_t() {}
 
@@ -1076,6 +1088,12 @@ class warp_inst_t : public inst_t {
 
   unsigned get_wid() const { return m_wid; }	
   void set_wid(int wid) { m_wid = wid; }
+
+  unsigned get_cluster_id() { return m_cluster_id; }
+  void set_cluster_id(int cluster_id) { m_cluster_id = cluster_id; }
+
+  int get_pc() { return m_pc; }
+  void set_pc(int pc) { m_pc = pc; }
 
   // modifiers
   void broadcast_barrier_reduction(const active_mask_t &access_mask);
@@ -1147,10 +1165,21 @@ class warp_inst_t : public inst_t {
   };
 
   void generate_mem_accesses();
+  void generate_mem_accesses_collection(const active_mask_t &mask);
   void memory_coalescing_arch(bool is_write, mem_access_type access_type);
+  void memory_coalescing_arch_collection(bool is_write, mem_access_type access_type);
   void memory_coalescing_arch_atomic(bool is_write,
                                      mem_access_type access_type);
+  void memory_coalescing_arch_atomic_collection(bool is_write,
+                                     mem_access_type access_type);   
+  void memory_coalescing_arch_atomic_stats_collection(bool is_write,
+                                                mem_access_type access_type);                                
   void memory_coalescing_arch_reduce_and_send(bool is_write,
+                                              mem_access_type access_type,
+                                              const transaction_info &info,
+                                              new_addr_type addr,
+                                              unsigned segment_size);
+  void memory_coalescing_arch_reduce_and_send_collection(bool is_write,
                                               mem_access_type access_type,
                                               const transaction_info &info,
                                               new_addr_type addr,
@@ -1192,6 +1221,12 @@ class warp_inst_t : public inst_t {
     assert(!m_empty);
     return m_warp_id;
   }
+
+  unsigned warp_id_addr() const {
+    //assert(!m_empty);
+    return m_warp_id;
+  }
+
   unsigned warp_id_func() const  // to be used in functional simulations only
   {
     return m_warp_id;
@@ -1236,12 +1271,16 @@ class warp_inst_t : public inst_t {
   int get_cycle_issued_warp() const { return warp_issued_cycle; }
 
   unsigned m_checked_for_dep;
+  unsigned m_stalled_cycles;
+  unsigned m_inst_number;
+  bool m_empty;
 
  protected:
   unsigned m_uid;
   unsigned m_sid;
+  unsigned m_cluster_id;
+  int m_pc;
   unsigned m_wid;
-  bool m_empty;
   bool m_cache_hit;
   unsigned long long issue_cycle;
   unsigned cycles;  // used for implementing initiation interval delay
@@ -1275,13 +1314,13 @@ class warp_inst_t : public inst_t {
   bool m_per_scalar_thread_valid;
   std::vector<per_thread_info> m_per_scalar_thread;
   bool m_mem_accesses_created;
-  std::list<mem_access_t> m_accessq;
 
   unsigned m_scheduler_id;  // the scheduler that issues this inst
 
   // Jin: cdp support
  public:
   int m_is_cdp;
+  std::list<mem_access_t> m_accessq;
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);
@@ -1332,10 +1371,13 @@ class core_t {
   virtual bool warp_waiting_at_barrier(unsigned warp_id) const = 0;
   virtual void checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned t,
                                              unsigned tid) = 0;
+  virtual void checkExecutionStatusAndUpdate_for_pc(warp_inst_t &inst, unsigned t,
+                                             unsigned tid) = 0;
   class gpgpu_sim *get_gpu() {
     return m_gpu;
   }
   void execute_warp_inst_t(warp_inst_t &inst, unsigned warpId = (unsigned)-1);
+  void execute_warp_inst_t_for_pc(warp_inst_t &inst, unsigned warpId = (unsigned)-1);
 
   // only updates if PC was last PC to execute for fetch to be correct 	
   // Executed when pushing instruction from normal queue to OOO (replay) queue	

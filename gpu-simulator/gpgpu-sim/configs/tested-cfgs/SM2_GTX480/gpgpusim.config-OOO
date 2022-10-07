@@ -1,3 +1,6 @@
+# FAST Main config_turing_islip
+-gpgpu_reply_buffer 1
+
 # functional simulator specification
 -gpgpu_ptx_instruction_classification 0
 -gpgpu_ptx_sim_mode 0
@@ -153,8 +156,8 @@
 -visualizer_enabled 0
 
 # power model configs
--power_simulation_enabled 1
--gpuwattch_xml_file gpuwattch_gtx480.xml
+-power_simulation_enabled 0
+#-gpuwattch_xml_file gpuwattch_gtx480.xml
 
 # tracing functionality
 #-trace_enabled 1

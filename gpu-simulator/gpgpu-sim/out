@@ -1,0 +1,194 @@
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+In file included from cuda-sim.h:36:0,
+                 from cuda-sim.cc:31:
+../abstract_hardware_model.h: In constructor 'inst_t::inst_t()':
+../abstract_hardware_model.h:951:12: warning: converting to non-pointer type 'new_addr_type {aka long long unsigned int}' from NULL [-Wconversion-null]
+     addr = NULL;
+            ^~~~
+In file included from cuda-sim.h:36:0,
+                 from cuda-sim.cc:31:
+../abstract_hardware_model.h: In member function 'int register_set::get_free_id()':
+../abstract_hardware_model.h:1529:12: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+     return NULL;
+            ^~~~
+../abstract_hardware_model.h: In member function 'int register_set::get_free_id(bool, unsigned int)':
+../abstract_hardware_model.h:1540:12: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+     return NULL;
+            ^~~~
+In file included from cuda-sim.h:37:0,
+                 from cuda-sim.cc:31:
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::replay_buffer_fill_check(unsigned int)':
+../gpgpu-sim/shader.h:373:10: warning: unused variable 'addr' [-Wunused-variable]
+     int *addr = &replay_buffer[slot].m_pc;
+          ^~~~
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::replay_buffer_flush()':
+../gpgpu-sim/shader.h:429:43: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+       replay_buffer[replay_m_next].m_pc = NULL;
+                                           ^~~~
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::replay_buffer_free()':
+../gpgpu-sim/shader.h:438:41: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+     replay_buffer[replay_m_next].m_pc = NULL;
+                                         ^~~~
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::replay_buffer_flush_OOO()':
+../gpgpu-sim/shader.h:556:35: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+       replay_buffer_OOO[i].m_pc = NULL;
+                                   ^~~~
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::replay_buffer_free_OOO(int)':
+../gpgpu-sim/shader.h:582:37: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+     replay_buffer_OOO[index].m_pc = NULL;
+                                     ^~~~
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::ibuffer_1_flush()':
+../gpgpu-sim/shader.h:773:33: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+         ibuffer_OOO_1[i].m_pc = NULL;
+                                 ^~~~
+../gpgpu-sim/shader.h: In member function 'int shd_warp_t::get_ibuffer_1_set_inst_invalid(int)':
+../gpgpu-sim/shader.h:827:3: warning: no return statement in function returning non-void [-Wreturn-type]
+   }
+   ^
+../gpgpu-sim/shader.h: In member function 'int shd_warp_t::get_control_insts_here_0(int)':
+../gpgpu-sim/shader.h:914:3: warning: no return statement in function returning non-void [-Wreturn-type]
+   }
+   ^
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::ibuffer_flush_OOO()':
+../gpgpu-sim/shader.h:1113:31: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+         ibuffer_OOO[i].m_pc = NULL;
+                               ^~~~
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::ibuffer_flush_OOO_in_OOO()':
+../gpgpu-sim/shader.h:1138:31: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+         ibuffer_OOO[i].m_pc = NULL;
+                               ^~~~
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::ibuffer_free_OOO(int)':
+../gpgpu-sim/shader.h:1224:31: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+     ibuffer_OOO[index].m_pc = NULL;
+                               ^~~~
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::replay_buffer_flush_mem()':
+../gpgpu-sim/shader.h:1834:51: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+       replay_buffer_mem[replay_m_next_mem].m_pc = NULL;
+                                                   ^~~~
+../gpgpu-sim/shader.h: In member function 'void shd_warp_t::replay_buffer_free_mem()':
+../gpgpu-sim/shader.h:1843:49: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+     replay_buffer_mem[replay_m_next_mem].m_pc = NULL;
+                                                 ^~~~
+../gpgpu-sim/shader.h: In constructor 'shd_warp_t::replay_buffer_entry::replay_buffer_entry()':
+../gpgpu-sim/shader.h:2065:14: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+       m_pc = NULL;
+              ^~~~
+../gpgpu-sim/shader.h: In constructor 'shd_warp_t::replay_buffer_entry_OOO::replay_buffer_entry_OOO()':
+../gpgpu-sim/shader.h:2080:14: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+       m_pc = NULL;
+              ^~~~
+../gpgpu-sim/shader.h:2084:7: warning: statement has no effect [-Wunused-value]
+       m_active_mask;
+       ^~~~~~~~~~~~~
+../gpgpu-sim/shader.h: In constructor 'shd_warp_t::ibuffer_entry_OOO::ibuffer_entry_OOO()':
+../gpgpu-sim/shader.h:2103:14: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+       m_pc = NULL;
+              ^~~~
+../gpgpu-sim/shader.h:2110:7: warning: statement has no effect [-Wunused-value]
+       m_active_mask;
+       ^~~~~~~~~~~~~
+../gpgpu-sim/shader.h: In constructor 'shd_warp_t::replay_buffer_entry_mem::replay_buffer_entry_mem()':
+../gpgpu-sim/shader.h:2140:14: warning: converting to non-pointer type 'int' from NULL [-Wconversion-null]
+       m_pc = NULL;
+              ^~~~
+../gpgpu-sim/shader.h: In constructor 'scheduler_unit::scheduler_unit(shader_core_stats*, shader_core_ctx*, Scoreboard*, simt_stack**, std::vector<shd_warp_t*>*, register_set*, register_set*, register_set*, register_set*, register_set*, std::vector<register_set*>&, register_set*, int)':
+../gpgpu-sim/shader.h:2387:32: warning: 'scheduler_unit::m_spec_cores_out' will be initialized after [-Wreorder]
+   std::vector<register_set *> &m_spec_cores_out;
+                                ^~~~~~~~~~~~~~~~
+../gpgpu-sim/shader.h:2386:17: warning:   'register_set* scheduler_unit::m_mem_out' [-Wreorder]
+   register_set *m_mem_out;
+                 ^~~~~~~~~
+../gpgpu-sim/shader.h:2244:3: warning:   when initialized here [-Wreorder]
+   scheduler_unit(shader_core_stats *stats, shader_core_ctx *shader,
+   ^~~~~~~~~~~~~~
+../gpgpu-sim/shader.h: In member function 'const active_mask_t& opndcoll_rfu_t::collector_unit_t::get_active_mask() const':
+../gpgpu-sim/shader.h:2868:38: warning: returning reference to temporary [-Wreturn-local-addr]
+       return m_warp->get_active_mask();
+                                      ^
+cuda-sim.cc: In member function 'void function_info::ptx_jit_config(std::map<long long unsigned int, long unsigned int>, memory_space*, gpgpu_t*, dim3, dim3)':
+cuda-sim.cc:1535:3: warning: NULL used in arithmetic [-Wpointer-arith]
+   assert(system(buff) != NULL);
+   ^~~~~~
+cuda-sim.cc: In member function 'void ptx_thread_info::ptx_exec_inst_for_pc(warp_inst_t&, unsigned int)':
+cuda-sim.cc:2183:16: warning: variable 'space_type' set but not used [-Wunused-but-set-variable]
+       unsigned space_type = 0;
+                ^~~~~~~~~~
+cuda-sim.cc:2142:40: warning: unused variable 'config' [-Wunused-variable]
+     const gpgpu_functional_sim_config &config = m_gpu->get_config();
+                                        ^~~~~~
+cuda-sim.cc:2066:7: warning: variable 'op_classification' set but not used [-Wunused-but-set-variable]
+   int op_classification = 0;
+       ^~~~~~~~~~~~~~~~~
+cuda-sim.cc: In member function 'void function_info::ptx_jit_config(std::map<long long unsigned int, long unsigned int>, memory_space*, gpgpu_t*, dim3, dim3)':
+cuda-sim.cc:1537:8: warning: ignoring return value of 'char* fgets(char*, int, FILE*)', declared with attribute warn_unused_result [-Wunused-result]
+   fgets(buff, 1024, fp);
+   ~~~~~^~~~~~~~~~~~~~~~
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "en_US.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").

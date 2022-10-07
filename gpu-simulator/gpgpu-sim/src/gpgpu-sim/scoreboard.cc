@@ -38,13 +38,16 @@ Scoreboard::Scoreboard(unsigned sid, unsigned n_warps, class gpgpu_t* gpu)
   m_sid = sid;
   // Initialize size of table
   reg_table.resize(n_warps);
+  addr_table.resize(n_warps);
   longopregs.resize(n_warps);
+  longopregs_hold.resize(n_warps);
 
   /* New variables for FAST */
   reg_table_mem.resize(n_warps);
   reg_table_comp.resize(n_warps);
 
   reg_reserved_mem.resize(n_warps);
+  reg_pc.resize(n_warps);
   reg_type_mem.resize(n_warps);
   reg_load_type.resize(n_warps);
   reg_released_mem.resize(n_warps);
@@ -94,7 +97,7 @@ void Scoreboard::printContents() const {
   }
 }
 
-void Scoreboard::reserveRegister(unsigned wid, unsigned regnum, bool gpgpu_perfect_mem_data) {
+void Scoreboard::reserveRegister(unsigned wid, unsigned regnum, bool gpgpu_perfect_mem_data, int pc, int m_cluster_id, int sid, int stalls_between_issues, int inst_num) {
   if (!(reg_table[wid].find(regnum) == reg_table[wid].end()) && !gpgpu_perfect_mem_data) {
     printf(
         "Error: trying to reserve an already reserved register (sid=%d, "
@@ -102,7 +105,11 @@ void Scoreboard::reserveRegister(unsigned wid, unsigned regnum, bool gpgpu_perfe
         m_sid, wid, regnum);
     abort();
   }
-  reg_reserved[wid][regnum] = warp_inst_issue_num[wid];
+
+  //std::cout <<"START_ISSUE "<<m_cluster_id<<" "<<sid<<" "<<wid<<" "<<pc<<" "<<warp_inst_issue_num[wid]<<" "<<stalls_between_issues<<"\n";
+  //reg_reserved[wid][regnum] = warp_inst_issue_num[wid];
+  reg_reserved[wid][regnum] = inst_num;
+  reg_pc[wid][regnum] = pc;
   SHADER_DPRINTF(SCOREBOARD, "Reserved Register - warp:%d, reg: %d\n", wid,
                  regnum);
   reg_table[wid].insert(regnum);
@@ -119,21 +126,55 @@ void Scoreboard::releaseRegister(unsigned wid, unsigned regnum) {
   reg_table[wid].erase(regnum);
   mem_issues = mem_issues + 1;
   mem_cycle_counter = mem_cycle_counter + (cycles_passed - reg_reserved[wid].find(regnum)->second);
+  longopregs_hold[wid].erase(regnum);
 }
 
 const bool Scoreboard::islongop(unsigned warp_id, unsigned regnum) {
   return longopregs[warp_id].find(regnum) != longopregs[warp_id].end();
 }
 
-void Scoreboard::reserveRegisters(const class warp_inst_t* inst, bool gpgpu_perfect_mem_data, int status) {
+const bool Scoreboard::islongop_hold(unsigned warp_id, const class warp_inst_t* inst) {
+
+  std::set<int> inst_regs;
+
+  for (unsigned iii = 0; iii < inst->outcount; iii++)
+  {
+    inst_regs.insert(inst->out[iii]);
+  }
+
+  for (unsigned jjj = 0; jjj < inst->incount; jjj++)
+    inst_regs.insert(inst->in[jjj]);
+
+  if (inst->pred > 0) inst_regs.insert(inst->pred);
+  if (inst->ar1 > 0) inst_regs.insert(inst->ar1);
+  if (inst->ar2 > 0) inst_regs.insert(inst->ar2);
+
+  // Check for collision, get the intersection of reserved registers and
+  // instruction registers
+  std::set<int>::iterator it2;
+  std::set<unsigned>::const_iterator it;
+
+  for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
+  {
+    if (longopregs_hold[warp_id].find(*it2) != longopregs_hold[warp_id].end()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void Scoreboard::reserveRegisters(const class warp_inst_t* inst, bool gpgpu_perfect_mem_data, int status, int m_cluster_id, int sid, int instNum, int numStalls) {
   warp_inst_issue_num[inst->warp_id()]++;
+  bool dep_found = false;
   for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++) {
     if (inst->out[r] > 0) {
-      reserveRegister(inst->warp_id(), inst->out[r],gpgpu_perfect_mem_data);
+      dep_found = true;
+      reserveRegister(inst->warp_id(), inst->out[r],gpgpu_perfect_mem_data,inst->pc, m_cluster_id, sid,numStalls,instNum);
       SHADER_DPRINTF(SCOREBOARD, "Reserved register - warp:%d, reg: %d\n",
                      inst->warp_id(), inst->out[r]);
     }
   }
+
   // Keep track of long operations
   if (inst->is_load() && (inst->space.get_type() == global_space ||
                           inst->space.get_type() == local_space ||
@@ -148,17 +189,30 @@ void Scoreboard::reserveRegisters(const class warp_inst_t* inst, bool gpgpu_perf
         longopregs[inst->warp_id()].insert(inst->out[r]);
       }
     }
+
+    if(longopregs_hold[inst->warp_id()].empty())
+      for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++) {
+        if (inst->out[r] > 0) {
+          longopregs_hold[inst->warp_id()].insert(inst->out[r]);
+        }
+      }
+
   }
 }
 
 // Release registers for an instruction
 void Scoreboard::releaseRegisters(const class warp_inst_t* inst) {
+  for (int i = 0; i<inst->addr_keeper_idx; i++)
+  {
+    addr_table[inst->warp_id()].erase(inst->addr_keeper[i]);
+  }
   for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++) {
     if (inst->out[r] > 0) {
       SHADER_DPRINTF(SCOREBOARD, "Register Released - warp:%d, reg: %d\n",
                      inst->warp_id(), inst->out[r]);
       releaseRegister(inst->warp_id(), inst->out[r]);
       longopregs[inst->warp_id()].erase(inst->out[r]);
+      longopregs_hold[inst->warp_id()].erase(inst->out[r]);
     }
   }
 }
@@ -191,6 +245,14 @@ bool Scoreboard::checkCollision(unsigned wid, const class inst_t* inst, bool pri
   std::set<int>::iterator it2;
   std::set<unsigned>::const_iterator it;
 
+  if(wid == 0)
+  for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
+  {
+    if (reg_table[wid].find(*it2) == reg_table[wid].end() && longopregs_hold[wid].find(*it2) != longopregs_hold[wid].end()) {
+      std::cout <<"HUGE_POBLEM_HERE "<<wid<<" "<<inst->pc<<"\n";
+    }
+  }
+
   for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
   {
     if (reg_table[wid].find(*it2) != reg_table[wid].end()) {
@@ -199,6 +261,119 @@ bool Scoreboard::checkCollision(unsigned wid, const class inst_t* inst, bool pri
   }
 
   return false;
+}
+
+void Scoreboard::collisionInstPC(unsigned wid, const inst_t* inst, bool print, int pc, int m_cluster_id, int sid, std::vector<const warp_inst_t *> replayInst) {
+  // Get list of all input and output registers
+  std::set<int> inst_regs;
+
+  for (unsigned iii = 0; iii < inst->outcount; iii++)
+  {
+    inst_regs.insert(inst->out[iii]);
+  }
+
+  for (unsigned jjj = 0; jjj < inst->incount; jjj++)
+    inst_regs.insert(inst->in[jjj]);
+
+  if (inst->pred > 0) inst_regs.insert(inst->pred);
+  if (inst->ar1 > 0) inst_regs.insert(inst->ar1);
+  if (inst->ar2 > 0) inst_regs.insert(inst->ar2);
+
+  // Check for collision, get the intersection of reserved registers and
+  // instruction registers
+  std::set<int>::iterator it2;
+  std::set<unsigned>::const_iterator it;
+
+  std::set<int> inst_replay_regs;
+
+  // make list of all regs in replay list
+  for(const class inst_t* ins : replayInst)
+  {
+    for (unsigned iii = 0; iii < ins->outcount; iii++)
+    {
+      inst_replay_regs.insert(ins->out[iii]);
+    }
+
+
+    for (unsigned jjj = 0; jjj < ins->incount; jjj++)
+      inst_replay_regs.insert(ins->in[jjj]);
+  }
+
+  std::cout <<"COLLISION STATUS "<<m_cluster_id<<" "<<sid<<" "<<wid<<" "<<pc<<" ";
+
+  for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
+  {
+    int regnum = (*it2);
+    if (reg_table[wid].find(*it2) != reg_table[wid].end()) {
+      std::cout <<reg_pc[wid][regnum]<<" ";
+    }
+    else if (inst_replay_regs.find(*it2) != inst_replay_regs.end()) {
+      std::cout <<reg_pc[wid][regnum]<<" ";
+    }
+  }
+  std::cout <<"\n";
+}
+
+bool Scoreboard::checkCollisionAddr(unsigned wid, const class inst_t* inst, bool print) const {
+  // Get list of all input and output registers
+  std::set<int> inst_regs;
+
+  for (unsigned iii = 0; iii < inst->addr_keeper_idx; iii++)
+  {
+    inst_regs.insert(inst->addr_keeper[iii]);
+  }
+
+  // Check for collision, get the intersection of reserved registers and
+  // instruction registers
+  std::set<int>::iterator it2;
+  std::set<unsigned>::const_iterator it;
+
+  for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
+  {
+    if (addr_table[wid].find(*it2) != addr_table[wid].end()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void Scoreboard::get_dep_distance(unsigned wid, const warp_inst_t *inst1, int m_cluster_id, int sid, int stalls_between_issues, int OOO, int instNum, int numStalls)
+{
+  std::set<int> inst_regs;
+
+  for (unsigned iii = 0; iii < inst1->outcount; iii++)
+  {
+    inst_regs.insert(inst1->out[iii]);
+  }
+
+  for (unsigned jjj = 0; jjj < inst1->incount; jjj++)
+    inst_regs.insert(inst1->in[jjj]);
+
+  if (inst1->pred > 0) inst_regs.insert(inst1->pred);
+  if (inst1->ar1 > 0) inst_regs.insert(inst1->ar1);
+  if (inst1->ar2 > 0) inst_regs.insert(inst1->ar2);
+
+  // Check for collision, get the intersection of reserved registers and
+  // instruction registers
+  std::set<int>::iterator it2;
+  std::set<unsigned>::const_iterator it;
+
+  // std::cout <<"DEP_REGS "<<m_cluster_id<<" "<<sid<<" "<<wid<<" "<<inst1->pc<<" ";
+  // for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
+  // {
+  //   int regnum = (*it2);
+  //   std::cout <<regnum<<" ";
+  // }
+  // std::cout <<"\n";
+  
+  // for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
+  // {
+  //   int regnum = (*it2);
+  //   int inst_diff = instNum - reg_reserved[wid][regnum];
+  //   //if(reg_reserved[wid][regnum]!=0)
+  //   if(inst_diff>0 && inst1->pc!=reg_pc[wid][regnum])
+  //     std::cout <<"DEPENDENCE_FOUND "<<m_cluster_id<<" "<<sid<<" "<<wid<<" "<<inst1->pc<<" "<<regnum<<" "<<reg_pc[wid][regnum]<<" "<<inst_diff<<" "<<numStalls<<" "<<OOO<<"\n";
+  // }
 }
 
 void Scoreboard::get_closest_dependence(unsigned wid, const inst_t *inst1, bool print, int m_cluster_id, int sid, int OOO_dep,

@@ -306,6 +306,8 @@ class ptx_thread_info {
 
   void ptx_fetch_inst(inst_t &inst) const;
   void ptx_exec_inst(warp_inst_t &inst, unsigned lane_id);
+  void ptx_exec_inst_for_pc(warp_inst_t &inst, unsigned lane_id);
+  
   bool isSyncInst(const warp_inst_t *inst, unsigned lane_id);
   bool isSyncInstMemory(const warp_inst_t *inst, unsigned lane_id);
   bool isSyncInstNonMemory(const warp_inst_t *inst, unsigned lane_id);

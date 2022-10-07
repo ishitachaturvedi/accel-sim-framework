@@ -54,6 +54,7 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   m_tpc = tpc;
   m_wid = wid;
   cycle_issued = 0;
+  m_addr = access.get_addr();
   config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
   m_partition_addr =
       config->m_address_mapping.partition_address(access.get_addr());
@@ -124,6 +125,10 @@ bool mem_fetch::isconst() const {
   if (m_inst.empty()) return false;
   return (m_inst.space.get_type() == const_space) ||
          (m_inst.space.get_type() == param_space_kernel);
+}
+
+void mem_fetch::set_inst_addr() {
+  m_inst.addr = m_access.get_addr();
 }
 
 /// Returns number of flits traversing interconnect. simt_to_mem specifies the

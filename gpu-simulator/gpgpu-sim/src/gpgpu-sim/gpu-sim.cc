@@ -1155,18 +1155,6 @@ bool gpgpu_sim::active() {
 void gpgpu_sim::init() {
   // run a CUDA grid on the GPU microarchitecture simulator
 
-  mem_data_stall_kernel = 0;
-  comp_data_stall_kernel = 0;
-  ibuffer_stall_kernel = 0;
-  comp_str_stall_kernel = 0;
-  control_hazard_count_kernel = 0;
-  mem_str_stall_kernel = 0;
-  other_stall1_kernel = 0;
-  other_stall2_kernel = 0;
-  other_stall3_kernel = 0;
-  ooo_opp_kernel = 0;
-  cannot_issue_warp_DEB_dep_kernel = 0;
-
   ICACHE_EMPTY_Kernel = 0;
   L1I_miss_kernel = 0;
   L1I_hit_kernel = 0;
@@ -1245,18 +1233,6 @@ void gpgpu_sim::update_stats() {
   partiton_reqs_in_parallel_util_total += partiton_reqs_in_parallel_util;
   gpu_tot_sim_cycle_parition_util += gpu_sim_cycle_parition_util;
   gpu_tot_occupancy += gpu_occupancy;
-
-  mem_data_stall_kernel = 0;
-  comp_data_stall_kernel = 0;
-  ibuffer_stall_kernel = 0;
-  comp_str_stall_kernel = 0;
-  control_hazard_count_kernel = 0;
-  mem_str_stall_kernel = 0;
-  other_stall1_kernel = 0;
-  other_stall2_kernel = 0;
-  other_stall3_kernel = 0;
-  ooo_opp_kernel = 0;
-  cannot_issue_warp_DEB_dep_kernel = 0;
 
   ICACHE_EMPTY_Kernel = 0;
   L1I_miss_kernel = 0;
@@ -1487,39 +1463,6 @@ void gpgpu_sim::gpu_print_stat() {
 
   std::string kernel_info_str = executed_kernel_info_string();
   fprintf(statfout, "%s", kernel_info_str.c_str());
-
-  printf("mem_data_stall_kernel = %d\n",mem_data_stall_kernel);
-  printf("cannot_issue_warp_DEB_dep_kernel = %ld\n",cannot_issue_warp_DEB_dep_kernel);
-  printf("comp_data_stall_kernel = %d\n",comp_data_stall_kernel);
-  printf("ibuffer_stall_kernel = %d\n",ibuffer_stall_kernel);
-  printf("comp_str_stall_kernel = %d\n",comp_str_stall_kernel);
-  printf("control_hazard_count_kernel = %d\n",control_hazard_count_kernel);
-  printf("mem_str_stall_kernel = %d\n",mem_str_stall_kernel);
-  printf("other_stall1_kernel = %d\n",other_stall1_kernel);
-  printf("other_stall2_kernel = %d\n",other_stall2_kernel);
-  printf("other_stall3_kernel = %d\n",other_stall3_kernel);  
-  printf("ooo_opp_kernel = %d\n",ooo_opp_kernel);
-  printf("ICACHE_EMPTY_Kernel = %d\n",ICACHE_EMPTY_Kernel);
-  printf("L1I_miss_kernel = %d\n",L1I_miss_kernel);
-  printf("L1I_hit_kernel = %d\n",L1I_hit_kernel);
-  printf("ibuffer_empty_kernel = %d\n",ibuffer_empty_kernel);
-  printf("gen_mem_icache_kernel = %d\n",gen_mem_icache_kernel);
-  printf("ICNT_TO_MEM_count_kernel = %d\n",ICNT_TO_MEM_count_kernel);
-  printf("ICNT_TO_MEM_cycles_kernel = %d\n",ICNT_TO_MEM_cycles_kernel);
-  printf("ROP_DELAY_count_kernel = %d\n",ROP_DELAY_count_kernel);
-  printf("ROP_DELAY_cycle_kernel = %d\n",ROP_DELAY_cycle_kernel);
-  printf("ICNT_TO_L2_QUEUE_count_kernel = %d\n",ICNT_TO_L2_QUEUE_count_kernel);
-  printf("ICNT_TO_L2_QUEUE_cycles_kernel = %d\n",ICNT_TO_L2_QUEUE_cycles_kernel);
-  printf("DRAM_LATENCY_QUEUE_count_kernel = %d\n",DRAM_LATENCY_QUEUE_count_kernel);
-  printf("DRAM_LATENCY_QUEUE_cycle_kernel = %d\n",DRAM_LATENCY_QUEUE_cycle_kernel);
-  printf("DRAM_TO_L2_QUEUE_count_kernel = %d\n",DRAM_TO_L2_QUEUE_count_kernel);
-  printf("DRAM_TO_L2_QUEUE_cycle_kernel = %d\n",DRAM_TO_L2_QUEUE_cycle_kernel);
-  printf("DRAM_L2_FILL_QUEUE_count_kernel = %d\n",DRAM_L2_FILL_QUEUE_count_kernel);
-  printf("DRAM_L2_FILL_QUEUE_cycle_kernel = %d\n",DRAM_L2_FILL_QUEUE_cycle_kernel);
-  printf("L2_TO_ICNT_count_kernel = %d\n",L2_TO_ICNT_count_kernel);
-  printf("L2_TO_ICNT_cycle_kernel = %d\n",L2_TO_ICNT_cycle_kernel);
-  printf("ICNT_TO_SHADER_count_kernel = %d\n",ICNT_TO_SHADER_count_kernel);
-  printf("ICNT_TO_SHADER_cycles_kernel = %d\n",ICNT_TO_SHADER_cycles_kernel);
 
   printf("gpu_sim_cycle = %lld\n", gpu_sim_cycle);
   printf("gpu_sim_insn = %lld\n", gpu_sim_insn);
@@ -2422,7 +2365,7 @@ void gpgpu_sim::cycle() {
       }
     }
 
-    if (!(gpu_sim_cycle % 50000)) {
+    if (!(gpu_sim_cycle % 8000)) {
       // deadlock detection
       if (m_config.gpu_deadlock_detect && gpu_sim_insn == last_gpu_sim_insn) {
         gpu_deadlock = true;

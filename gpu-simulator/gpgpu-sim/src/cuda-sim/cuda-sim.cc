@@ -1788,7 +1788,7 @@ bool ptx_thread_info::isSyncInstNonMemory(const warp_inst_t *inst, unsigned lane
   return (inst_opcode == BAR_OP|| inst_opcode == CALL_OP || inst_opcode == CALLP_OP || inst_opcode == EXIT_OP	
         || inst_opcode == RET_OP || inst_opcode == RETP_OP || inst_opcode == TRAP_OP ||inst_opcode == VOTE_OP	
         || inst_opcode == ACTIVEMASK_OP || inst_opcode == BREAK_OP || inst_opcode == BREAKADDR_OP	
-        || inst_opcode == EXIT_OPS
+        || inst_opcode == EXIT_OPS || inst_opcode == ATOM_OP
         );	
 }
 
@@ -1799,7 +1799,7 @@ bool ptx_thread_info::isSyncInstMemory(const warp_inst_t *inst, unsigned lane_id
   const ptx_instruction *pI = m_func_info->get_instruction(pc);	
   int inst_opcode = pI->get_opcode();
   return ( inst_opcode == MEMBAR_OP	
-        || inst_opcode == ATOM_OP
+        //|| inst_opcode == ATOM_OP
         );
 }
 
@@ -2059,6 +2059,175 @@ void ptx_thread_info::ptx_exec_inst(warp_inst_t &inst, unsigned lane_id) {
     abort();
   }
 }
+
+
+void ptx_thread_info::ptx_exec_inst_for_pc(warp_inst_t &inst, unsigned lane_id) {
+  bool skip = false;
+  int op_classification = 0;
+  //addr_t pc = next_instr();
+  addr_t pc = inst.pc; // change Ishita
+  assert(pc ==
+         inst.pc);  // make sure timing model and functional model are in sync
+  const ptx_instruction *pI = m_func_info->get_instruction(pc);
+
+  try {
+    clearRPC();
+    m_last_set_operand_value.u64 = 0;
+
+    if (pI->has_pred()) {
+      const operand_info &pred = pI->get_pred();
+      ptx_reg_t pred_value = get_operand_value(pred, pred, PRED_TYPE, this, 0);
+      if (pI->get_pred_mod() == -1) {
+        skip = (pred_value.pred & 0x0001) ^
+               pI->get_pred_neg();  // ptxplus inverts the zero flag
+      } else {
+        skip = !pred_lookup(pI->get_pred_mod(), pred_value.pred & 0x000F);
+      }
+    }
+    int inst_opcode = pI->get_opcode();
+
+    if (skip) {
+      inst.set_not_active(lane_id);
+    } else {
+      const ptx_instruction *pI_saved = pI;
+      ptx_instruction *pJ = NULL;
+      if (pI->get_opcode() == VOTE_OP || pI->get_opcode() == ACTIVEMASK_OP) {
+        pJ = new ptx_instruction(*pI);
+        *((warp_inst_t *)pJ) = inst;  // copy active mask information
+        pI = pJ;
+      }
+
+      if (((inst_opcode == MMA_OP || inst_opcode == MMA_LD_OP ||
+            inst_opcode == MMA_ST_OP))) {
+        if (inst.active_count() != MAX_WARP_SIZE) {
+          printf(
+              "Tensor Core operation are warp synchronous operation. All the "
+              "threads needs to be active.");
+          assert(0);
+        }
+      }
+
+      // Tensorcore is warp synchronous operation. So these instructions needs
+      // to be executed only once. To make the simulation faster removing the
+      // redundant tensorcore operation
+      if (!tensorcore_op(inst_opcode) ||
+          ((tensorcore_op(inst_opcode)) && (lane_id == 0))) {
+        switch (inst_opcode) {
+#define OP_DEF(OP, FUNC, STR, DST, CLASSIFICATION) \
+  case OP:                                         \
+    FUNC(pI, this);                                \
+    op_classification = CLASSIFICATION;            \
+    break;
+#define OP_W_DEF(OP, FUNC, STR, DST, CLASSIFICATION) \
+  case OP:                                           \
+    FUNC(pI, get_core(), inst);                      \
+    op_classification = CLASSIFICATION;              \
+    break;
+#include "opcodes.def"
+#undef OP_DEF
+#undef OP_W_DEF
+          default:
+            printf("Execution error: Invalid opcode (0x%x)\n",
+                   pI->get_opcode());
+            break;
+        }
+      }
+      delete pJ;
+      pI = pI_saved;
+
+      // Run exit instruction if exit option included
+      if (pI->is_exit()) exit_impl(pI, this);
+    }
+
+    const gpgpu_functional_sim_config &config = m_gpu->get_config();
+
+    addr_t insn_memaddr = 0xFEEBDAED;
+    memory_space_t insn_space = undefined_space;
+    _memory_op_t insn_memory_op = no_memory_op;
+    unsigned insn_data_size = 0;
+    if ((pI->has_memory_read() || pI->has_memory_write())) {
+      if (!((inst_opcode == MMA_LD_OP || inst_opcode == MMA_ST_OP))) {
+        insn_memaddr = last_eaddr();
+        insn_space = last_space();
+        unsigned to_type = pI->get_type();
+        insn_data_size = datatype2size(to_type);
+        insn_memory_op = pI->has_memory_read() ? memory_load : memory_store;
+      }
+    }
+
+    if (pI->get_opcode() == BAR_OP && pI->barrier_op() == RED_OPTION) {
+      inst.add_callback(lane_id, last_callback().function,
+                        last_callback().instruction, this,
+                        false /*not atomic*/);
+    }
+
+    if (pI->get_opcode() == ATOM_OP) {
+      insn_memaddr = last_eaddr();
+      insn_space = last_space();
+      inst.add_callback(lane_id, last_callback().function,
+                        last_callback().instruction, this, true /*atomic*/);
+      unsigned to_type = pI->get_type();
+      insn_data_size = datatype2size(to_type);
+    }
+
+    if (pI->get_opcode() == TEX_OP) {
+      inst.set_addr(lane_id, last_eaddr());
+      assert(inst.space == last_space());
+      insn_data_size = get_tex_datasize(
+          pI,
+          this);  // texture obtain its data granularity from the texture info
+    }
+
+    if (m_gpu->gpgpu_ctx->func_sim->gpgpu_ptx_instruction_classification) {
+      m_gpu->gpgpu_ctx->func_sim->init_inst_classification_stat();
+      unsigned space_type = 0;
+      switch (pI->get_space().get_type()) {
+        case global_space:
+          space_type = 10;
+          break;
+        case local_space:
+          space_type = 11;
+          break;
+        case tex_space:
+          space_type = 12;
+          break;
+        case surf_space:
+          space_type = 13;
+          break;
+        case param_space_kernel:
+        case param_space_local:
+          space_type = 14;
+          break;
+        case shared_space:
+          space_type = 15;
+          break;
+        case const_space:
+          space_type = 16;
+          break;
+        default:
+          space_type = 0;
+          break;
+      }
+    }
+
+    // "Return values"
+    if (!skip) {
+      if (!((inst_opcode == MMA_LD_OP || inst_opcode == MMA_ST_OP))) {
+        inst.space = insn_space;
+        inst.set_addr(lane_id, insn_memaddr);
+        inst.data_size = insn_data_size;  // simpleAtomicIntrinsics
+        assert(inst.memory_op == insn_memory_op);
+      }
+    }
+
+  } catch (int x) {
+    printf("GPGPU-Sim PTX: ERROR (%d) executing intruction (%s:%u)\n", x,
+           pI->source_file(), pI->source_line());
+    printf("GPGPU-Sim PTX:       '%s'\n", pI->get_source());
+    abort();
+  }
+}
+
 
 void cuda_sim::set_param_gpgpu_num_shaders(int num_shaders) {
   gpgpu_param_num_shaders = num_shaders;

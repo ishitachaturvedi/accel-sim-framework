@@ -42,17 +42,19 @@ class Scoreboard {
  public:
   Scoreboard(unsigned sid, unsigned n_warps, class gpgpu_t *gpu);
 
-  void reserveRegisters(const warp_inst_t *inst, bool gpgpu_perfect_mem_data, int status);
+  void reserveRegisters(const warp_inst_t *inst, bool gpgpu_perfect_mem_data, int status, int m_cluster_id, int sid, int instNum, int numStalls);
   void releaseRegisters(const warp_inst_t *inst);
   void releaseRegister(unsigned wid, unsigned regnum);
 
   bool checkCollision(unsigned wid, const inst_t *inst, bool print) const;
+  bool checkCollisionAddr(unsigned wid, const inst_t *inst, bool print) const;
   void get_closest_dependence(unsigned wid, const inst_t *inst1, bool print, int m_cluster_id, int sid, int OOO_dep,
 int num_inst_OOO, unsigned stalls_between_issues, int isOOO);
   bool pendingWrites(unsigned wid) const;
   bool pendingWrites(unsigned wid, bool ignore) const;
   void printContents() const;
   const bool islongop(unsigned warp_id, unsigned regnum);
+  const bool islongop_hold(unsigned warp_id, const class warp_inst_t* inst);
 
   /* Added Functions */
 
@@ -74,14 +76,18 @@ int num_inst_OOO, unsigned stalls_between_issues, int isOOO);
   std::vector<int> checkCollisionMem(unsigned wid, const inst_t *inst) const;
   std::vector<int> checkCollisionComp(unsigned wid, const inst_t *inst) const;
 
+  void collisionInstPC(unsigned wid, const inst_t* inst, bool print, int pc, int m_cluster_id, int sid, std::vector<const warp_inst_t *> replayInst);
+
   bool checkConsecutiveInstIndep(const inst_t *pI, const inst_t *last_exec_inst) const;
 
   void set_num_cycles_deocode_issue(int num_cycles, const class warp_inst_t* inst);
 
   void resetValuesOfScoreboard(int warp_id);
 
+  void get_dep_distance(unsigned wid, const warp_inst_t *inst1, int m_cluster_id, int sid, int stalls_between_issues, int OOO, int instNum, int numStalls);
+
  private:
-  void reserveRegister(unsigned wid, unsigned regnum, bool gpgpu_perfect_mem_data);
+  void reserveRegister(unsigned wid, unsigned regnum, bool gpgpu_perfect_mem_data, int pc, int m_cluster_id, int sid, int stalls_between_issues, int inst_num);
   int get_sid() const { return m_sid; }
 
   unsigned m_sid;
@@ -89,9 +95,11 @@ int num_inst_OOO, unsigned stalls_between_issues, int isOOO);
   // keeps track of pending writes to registers
   // indexed by warp id, reg_id => pending write count
   std::vector<std::set<unsigned> > reg_table;
+  std::vector<std::set<unsigned> > addr_table;
   std::vector<std::set<unsigned> > reg_table_all_regs_used_list;
   // Register that depend on a long operation (global, local or tex memory)
   std::vector<std::set<unsigned> > longopregs;
+  std::vector<std::set<unsigned> > longopregs_hold;
 
   void reserveRegisterMem(unsigned wid, unsigned regnum, bool is_load);
   void reserveRegisterComp(unsigned wid, unsigned regnum);
@@ -113,6 +121,7 @@ int num_inst_OOO, unsigned stalls_between_issues, int isOOO);
   std::vector<std::map<unsigned, int>> reg_table_all_regs_used;
 
   std::vector<std::map<unsigned, int>> reg_reserved;
+  std::vector<std::map<unsigned, int>> reg_pc;
   std::vector<std::map<unsigned, int>> reg_released;
 
   std::vector<std::map<unsigned, int>> num_cycles_decode_issue;

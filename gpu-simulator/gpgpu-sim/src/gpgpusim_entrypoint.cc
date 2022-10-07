@@ -47,6 +47,7 @@ using namespace std;
 using std::vector;
 
 long long cycle_num;
+long total_times_in_cycle = 0;
 vector<vector<vector<int>>>stallData;
 vector<vector<int>>act_warp;
 vector<vector<int>>issued_warp;
@@ -66,7 +67,7 @@ long long max_warps_act;
 long long cycles_passed = 0;
 long long max_sid;
 long long num_of_schedulers;
-long long numstall = 25;
+long long numstall = 10;
 long long print_on = 0;
 long long going_from_shader_to_mem = 0;
 long long present_ongoing_cycle = 0;
@@ -77,6 +78,15 @@ long long tot_cycles_exec_all_SM = 0;
 long long tot_inst_ret = 0;
 extern int total_warps = 0;
 
+int tot_mem_dep_checks = 0;
+int tot_mem_dep_true = 0;
+int tot_mem_dep_false = 0;
+int time_bw_inst = 0; 
+int reached_barrier = 0;
+
+int tot_issues_ILP = 0;
+int tot_issues_OOO = 0;
+
 // Stats collection
 long long mem_data_stall = 0;
 long long comp_data_stall = 0;
@@ -84,13 +94,13 @@ long long ibuffer_stall = 0;
 long long comp_str_stall = 0;
 long long mem_str_stall = 0;
 long long mem_data_stall_kernel = 0;
-long long comp_data_stall_kernel = 0;
+long long tot_inst_OOO_because_dep = 0;
 long long ibuffer_stall_kernel = 0;
 long long comp_str_stall_kernel = 0;
 long long mem_str_stall_kernel = 0;
-long long other_stall1 = 0;
-long long other_stall2 = 0;
-long long other_stall3 = 0;
+long long waiting_warp = 0;
+long long SM_num = 0;
+long long idle = 0;
 long long other_stall1_kernel = 0;
 long long other_stall2_kernel= 0;
 long long other_stall3_kernel = 0;
@@ -193,7 +203,7 @@ long long banks_access_ready_total_Ishita = 0;
 long long bwutil_total = 0;
 long long checked_L2_DRAM_here = 0;
 bool print_stall_data = false;
-long long SHADER_ICNT_PUSH = 0;
+long SHADER_ICNT_PUSH = 0;
 long long mem_inst_issue = 0;
 long long comp_inst_issue = 0;
 long long issued_inst_count = 0;
@@ -315,7 +325,7 @@ long long sync_inst_ibuffer_coll = 0;
 long long mem_inst_collision = 0;
 long long mem_inst_ibuffer_coll = 0;
 
-long long tot_inst_stuck = 0;
+long long tot_in_order_stall = 0;
 long long memory_inst_stuck = 0;
 long long non_memory_inst_stuck = 0;
 long long load_inst_stuck = 0;
@@ -326,6 +336,8 @@ long gpu_sim_insn_test = 0;
 long gpu_sim_insn_test_run = 0;
 
 bool replay_stall = 0;
+
+long total_mem_inst = 0;
 
 // writing the warp issued order to file
 ofstream write_warps;
@@ -370,9 +382,33 @@ static void termination_callback() {
   write_warps.close();
   std::cout <<"TOTAL CYCLES TAKEN "<<cycles_passed<<"\n";
   cout <<"gpu_sim_insn_test "<<gpu_sim_insn_test<<"\n";
+  cout <<"total_mem_inst "<<total_mem_inst<<"\n";
+  cout <<"tot_mem_dep_checks "<<tot_mem_dep_checks<<"\n";
+  cout <<"tot_mem_dep_true "<<tot_mem_dep_true<<"\n";
+  cout <<"tot_mem_dep_false "<<tot_mem_dep_false<<"\n";
+  cout <<"tot_issues_ILP "<<tot_issues_ILP<<"\n";
+  cout <<"total_times_in_cycle "<<total_times_in_cycle<<"\n";
+  cout <<"tot_issues_OOO "<<tot_issues_OOO<<"\n";
+  cout <<"tot_in_order_stall "<<tot_in_order_stall<<"\n";
+  cout <<"tot_inst_OOO_because_dep "<<tot_inst_OOO_because_dep<<"\n";
+
+  cout <<"STALL_STATS_PER_SCHED\n";
+
+  cout <<"SM sched mem_data comp_data ibuffer comp_str mem_str waiting_warp_stall idle_stall total_cycles total_stalls\n";
+  for(int i = 0; i<= SM_num; i++)
+  {
+    for(int j=0; j<4; j++)
+    {
+      cout <<i<<" "<<j<<" ";
+      for(int k = 0;k<numstall; k++)
+      {
+        cout <<stallData[i][j][k]<<" ";
+      }
+      cout <<"\n";
+    }
+  }
   
-  cout <<"tot_inst_stuck "<<tot_inst_stuck<<"\n";
-  cout <<"memory_inst_stuck "<<memory_inst_stuck<<"\n";
+  
   cout <<"non_memory_inst_stuck "<<non_memory_inst_stuck<<"\n";
   cout <<"load_inst_stuck "<<load_inst_stuck<<"\n";
   cout <<"store_inst_stuck "<<store_inst_stuck<<"\n";
@@ -396,7 +432,6 @@ static void termination_callback() {
   cout <<"ICNT_TO_SHADER_count "<<ICNT_TO_SHADER_count<<" ICNT_TO_SHADER_cycles "<<ICNT_TO_SHADER_cycles<<"\n";
   cout <<"CLUSTER_TO_SHADER_QUEUE_1_count "<<CLUSTER_TO_SHADER_QUEUE_1_count<<" CLUSTER_TO_SHADER_QUEUE_1_cycle "<<CLUSTER_TO_SHADER_QUEUE_1_cycle<<"\n";
   cout <<"issued_inst_count "<<issued_inst_count<<"\n";
-  cout <<"SHADER_ICNT_PUSH "<<SHADER_ICNT_PUSH<<"\n";
   cout <<"mem_inst_issue "<<mem_inst_issue<<"\n";
   cout <<"comp_inst_issue "<<comp_inst_issue<<"\n";
   cout <<"tot_cycles_exec_all_SM "<<tot_cycles_exec_all_SM<<"\n";
@@ -406,10 +441,7 @@ static void termination_callback() {
   cout <<"ibuffer_stall "<<ibuffer_stall<<"\n";
   cout <<"comp_str_stall "<<comp_str_stall<<"\n";
   cout <<"mem_str_stall "<<mem_str_stall<<"\n";
-  cout <<"other_stall1 "<<other_stall1<<"\n";
-  cout <<"other_stall2 "<<other_stall2<<"\n";
-  cout <<"other_stall3 "<<other_stall3<<"\n";
-  cout <<"cannot_issue_warp_DEB_dep "<<cannot_issue_warp_DEB_dep<<"\n";
+  cout <<"waiting_warp "<<waiting_warp<<"\n";
   
   cout <<"sync_inst_collision "<<sync_inst_collision<<'\n';
   cout <<"sync_inst_ibuffer_coll "<<sync_inst_ibuffer_coll<<"\n";
@@ -625,8 +657,8 @@ void *gpgpu_sim_thread_concurrent(void *ctx_ptr) {
 
   // Per Shader
   stallData.resize(500,
-    // Per Warp
-    vector<vector<int>>(300,
+    // Per scheduler
+    vector<vector<int>>(4,
       // Per Stall
       vector<int>(numstall,0)));
 
