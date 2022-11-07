@@ -56,6 +56,9 @@ int num_inst_OOO, unsigned stalls_between_issues, int isOOO);
   const bool islongop(unsigned warp_id, unsigned regnum);
   const bool islongop_hold(unsigned warp_id, const class warp_inst_t* inst);
 
+  bool check_for_WAW_deps(unsigned wid, const class inst_t* inst) const;
+  bool check_WAR_or_WAW_replay(unsigned wid, const class inst_t* inst, std::vector<const warp_inst_t *> replayInst) const;
+
   /* Added Functions */
 
   bool checkReplayCollision(unsigned wid, const inst_t *inst, std::vector<const warp_inst_t *> replayInst) const;

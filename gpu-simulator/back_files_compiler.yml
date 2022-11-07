@@ -1,0 +1,131 @@
+# FILES TO RUN-
+# RTX2060_S-PTX-IB100-GTO-PERFECT_MEM_ALIASING
+
+# Basefile Configs
+#Turing
+RTX2060_S:
+    base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM75_RTX2060_S/gpgpusim.config"
+
+# To keep your configurations straight - we recommend specifying
+# If you are using SASS or PTX in the config:
+#   For example: QV100-SASS or QV100-PTX.
+SASS:
+    extra_params: "#SASS-Driven Accel-Sim"
+
+PTX:
+    extra_params: "#PTX-Driven GPGPU-Sim"
+
+############################################################################
+
+# Extra configs - these are composable.
+# The names here will be appended to the basefile name with hyphens
+#   For example TITANX-L1ON-PTXPLUS
+IB2:
+    extra_params: "-gpgpu_reply_buffer 1 -gpgpu_ib_size_config 2 -gpgpu_ib_size_in 2 -gpgpu_ib_size_ooo 0
+    \n-power_simulation_enabled 1
+    \n-power_simulation_mode 0
+    \n-accelwattch_xml_file accelwattch_ptx_sim_IB2.xml"
+
+IB4:
+    extra_params: "-gpgpu_reply_buffer 1 -gpgpu_ib_size_config 4 -gpgpu_ib_size_in 4 -gpgpu_ib_size_ooo 0
+    \n-power_simulation_enabled 1
+    \n-power_simulation_mode 0
+    \n-accelwattch_xml_file accelwattch_ptx_sim_IB4.xml"
+
+IB6:
+    extra_params: "-gpgpu_reply_buffer 1 -gpgpu_ib_size_config 6 -gpgpu_ib_size_in 6 -gpgpu_ib_size_ooo 0
+    \n-power_simulation_enabled 1
+    \n-power_simulation_mode 0
+    \n-accelwattch_xml_file accelwattch_ptx_sim_IB6.xml"
+
+IB8:
+    extra_params: "-gpgpu_reply_buffer 1 -gpgpu_ib_size_config 8 -gpgpu_ib_size_in 8 -gpgpu_ib_size_ooo 0
+    \n-power_simulation_enabled 1
+    \n-power_simulation_mode 0
+    \n-accelwattch_xml_file accelwattch_ptx_sim_IB8.xml"
+
+IB16:
+    extra_params: "-gpgpu_reply_buffer 1 -gpgpu_ib_size_config 16 -gpgpu_ib_size_in 16 -gpgpu_ib_size_ooo 0  
+    \n-power_simulation_enabled 1
+    \n-power_simulation_mode 0  
+    \n-accelwattch_xml_file accelwattch_ptx_sim_IB16.xml"
+
+IB16:
+    extra_params: "-gpgpu_reply_buffer 1 -gpgpu_ib_size_config 100 -gpgpu_ib_size_in 100 -gpgpu_ib_size_ooo 0  
+    \n-power_simulation_enabled 1
+    \n-power_simulation_mode 0  
+    \n-accelwattch_xml_file accelwattch_ptx_sim_IB100.xml"
+
+
+# no streaming
+NO_STREAMING:
+    extra_params: "-gpgpu_streaming_ib 0"
+
+PERFECT_MEM_ALIASING:
+    extra_params: "-gpgpu_perfect_aliasing 1"
+
+# SCHEDULER
+GTO:
+    extra_params: "-gpgpu_scheduler gto"  
+
+LRR:
+    extra_params: "-gpgpu_scheduler lrr" 
+
+TWO_LEVEL:
+    extra_params: "-gpgpu_scheduler two_level_active:8:0:1"
+
+SWL_1:
+    extra_params: "-gpgpu_scheduler warp_limiting:2:1"
+
+SWL_2:
+    extra_params: "-gpgpu_scheduler warp_limiting:2:2"
+
+SWL_3:
+    extra_params: "-gpgpu_scheduler warp_limiting:2:3"
+
+SWL_4:
+    extra_params: "-gpgpu_scheduler warp_limiting:2:4"
+
+SWL_5:
+    extra_params: "-gpgpu_scheduler warp_limiting:2:5"
+
+SWL_6:
+    extra_params: "-gpgpu_scheduler warp_limiting:2:6"
+
+SWL_7:
+    extra_params: "-gpgpu_scheduler warp_limiting:2:7"
+
+SWL_8:
+    extra_params: "-gpgpu_scheduler warp_limiting:2:8"
+
+
+# Experimental - for SM 60 PTXplus support
+PTXPLUS_SM6:
+    extra_params: "-gpgpu_ptx_convert_to_ptxplus 1 -gpgpu_ptx_force_max_capability 62 -gpgpu_ptx_force_min_capability 60"
+    
+
+#Accelwattch configs 
+Accelwattch_SASS_SIM:
+    extra_params: "-power_simulation_enabled 1
+    \n-power_simulation_mode 0
+    \n-accelwattch_xml_file accelwattch_sass_sim.xml"
+
+Accelwattch_SASS_HW:
+    extra_params: "-power_simulation_enabled 1
+    \n-power_simulation_mode 1
+    \n-accelwattch_xml_file accelwattch_sass_hw.xml"
+
+Accelwattch_SASS_HYBRID:
+    extra_params: "-power_simulation_enabled 1
+    \n-power_simulation_mode 2
+    \n-accelwattch_xml_file accelwattch_sass_hybrid.xml
+    \n-accelwattch_hybrid_perfsim_L2_RH 1
+    \n-accelwattch_hybrid_perfsim_L2_RM 1
+    \n-accelwattch_hybrid_perfsim_L2_WH 1
+    \n-accelwattch_hybrid_perfsim_L2_WM 1
+    \n-accelwattch_hybrid_perfsim_NOC 1"
+
+Accelwattch_PTX_SIM:
+    extra_params: "-power_simulation_enabled 1
+    \n-power_simulation_mode 0
+    \n-accelwattch_xml_file accelwattch_ptx_sim.xml"

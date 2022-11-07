@@ -109,6 +109,7 @@ struct power_config {
     char buf1[1024];
     //snprintf(buf1, 1024, "accelwattch_power_report__%s.log", date);
     snprintf(buf1, 1024, "accelwattch_power_report.log");
+    //snprintf(buf1, 1024, "accelwattch_power_report_OOO_DEB_IB16.log");
     g_power_filename = strdup(buf1);
     char buf2[1024];
     snprintf(buf2, 1024, "gpgpusim_power_trace_report__%s.log.gz", date);
@@ -533,7 +534,7 @@ class gpgpu_sim : public gpgpu_t {
     return (m_config.gpu_max_cycle_opt && (gpu_tot_sim_cycle + gpu_sim_cycle) >=
                                               m_config.gpu_max_cycle_opt) ||
            (m_config.gpu_max_insn_opt &&
-            (gpu_tot_sim_insn + gpu_sim_insn) >= m_config.gpu_max_insn_opt) ||
+            tot_inst_exec >= m_config.gpu_max_insn_opt) ||
            (m_config.gpu_max_cta_opt &&
             (gpu_tot_issued_cta >= m_config.gpu_max_cta_opt)) ||
            (m_config.gpu_max_completed_cta_opt &&

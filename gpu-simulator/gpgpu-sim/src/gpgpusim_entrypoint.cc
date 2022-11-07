@@ -67,7 +67,7 @@ long long max_warps_act;
 long long cycles_passed = 0;
 long long max_sid;
 long long num_of_schedulers;
-long long numstall = 10;
+long long numstall = 12;
 long long print_on = 0;
 long long going_from_shader_to_mem = 0;
 long long present_ongoing_cycle = 0;
@@ -113,8 +113,8 @@ long long mem_str_stall_issue_irr = 0;
 long long other_stall_issue_irr1 = 0;
 long long other_stall_issue_irr2 = 0;
 long long other_stall_issue_irr3 = 0;
-long long ICNT_TO_MEM_count = 0;
-long long ICNT_TO_MEM_count_kernel = 0;
+long WAR_and_WAW_stalls = 0;
+bool WAR_or_WAW_found = 0;
 long long ICNT_TO_MEM_cycles = 0;
 long long ICNT_TO_MEM_cycles_kernel = 0;
 long long ICNT_TO_SHADER_count = 0;
@@ -391,6 +391,7 @@ static void termination_callback() {
   cout <<"tot_issues_OOO "<<tot_issues_OOO<<"\n";
   cout <<"tot_in_order_stall "<<tot_in_order_stall<<"\n";
   cout <<"tot_inst_OOO_because_dep "<<tot_inst_OOO_because_dep<<"\n";
+  cout <<"WAR_and_WAW_stalls "<<WAR_and_WAW_stalls<<"\n";
 
   cout <<"STALL_STATS_PER_SCHED\n";
 
@@ -420,7 +421,7 @@ static void termination_callback() {
   cout <<"fetch_resfail "<<fetch_resfail<<"\n";
   cout <<"control_hazard_count "<<control_hazard_count<<"\n";
   cout <<"tot_inst_exec "<<tot_inst_exec<<"\n";
-  cout <<"ICNT_TO_MEM_count "<<ICNT_TO_MEM_count<<" ICNT_TO_MEM_cycles "<<ICNT_TO_MEM_cycles<<"\n";
+  cout <<"ICNT_TO_MEM_cycles "<<ICNT_TO_MEM_cycles<<"\n";
   cout <<"ROP_DELAY_count "<<ROP_DELAY_count<<" ROP_DELAY_cycle "<<ROP_DELAY_cycle<<"\n";
   cout <<"ICNT_TO_L2_QUEUE_count "<<ICNT_TO_L2_QUEUE_count<<" ICNT_TO_L2_QUEUE_cycles "<<ICNT_TO_L2_QUEUE_cycles<<"\n";
   cout <<"L2_TO_DRAM_QUEUE_count "<<L2_TO_DRAM_QUEUE_count<<" L2_TO_DRAM_QUEUE_cycle "<<L2_TO_DRAM_QUEUE_cycle<<"\n";
@@ -435,7 +436,7 @@ static void termination_callback() {
   cout <<"mem_inst_issue "<<mem_inst_issue<<"\n";
   cout <<"comp_inst_issue "<<comp_inst_issue<<"\n";
   cout <<"tot_cycles_exec_all_SM "<<tot_cycles_exec_all_SM<<"\n";
-  printf("gpu_tot_stall_cycle = %d\n",stall_cycles);
+  printf("final_stall_cycle = %d\n",stall_cycles);
   cout <<"mem_data_stall "<<mem_data_stall<<"\n";
   cout <<"comp_data_stall "<<comp_data_stall<<"\n";
   cout <<"ibuffer_stall "<<ibuffer_stall<<"\n";
@@ -715,7 +716,6 @@ void *gpgpu_sim_thread_concurrent(void *ctx_ptr) {
       if (ctx->the_gpgpusim->g_stream_manager->operation(&sim_cycles) &&
           !ctx->the_gpgpusim->g_the_gpu->active())
         break;
-
       // functional simulation
       if (ctx->the_gpgpusim->g_the_gpu->is_functional_sim()) {
         kernel_info_t *kernel =
@@ -738,7 +738,6 @@ void *gpgpu_sim_thread_concurrent(void *ctx_ptr) {
           ctx->the_gpgpusim->break_limit = true;
         }
       }
-
       active = ctx->the_gpgpusim->g_the_gpu->active() ||
                !(ctx->the_gpgpusim->g_stream_manager->empty_protected());
 

@@ -57,12 +57,13 @@ using namespace std;
 
 // IB is full OOO
 //#ifdef IB_OOO_ON
+
 //#define IB_OOO_FULL
 //#endif
 
 //#define HAWS_ON
 
-//#define TWO_STAGE_IB
+///#define TWO_STAGE_IB
 
 // typedef enum {
 //     active_warp = 0,
@@ -96,6 +97,8 @@ typedef enum {
   idle_stall,
   total_cycles,
   tot_inst_issued,
+  mem_stalls,
+  other_stalls,
   total_stalls
 } StallReasons;
 
@@ -146,7 +149,7 @@ std::list<unsigned> shader_core_ctx::get_regs_written(const inst_t &fvt) const {
 void exec_shader_core_ctx::create_shd_warp() {
   m_warp.resize(m_config->max_warps_per_shader);
   for (unsigned k = 0; k < m_config->max_warps_per_shader; ++k) {
-    m_warp[k] = new shd_warp_t(this, m_config->warp_size);
+    m_warp[k] = new shd_warp_t(this, m_config->warp_size, m_config->ib_size_config, m_config->ib_size_in, m_config->ib_size_ooo);
   }
 }
 
@@ -579,7 +582,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
 
 void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
                                  unsigned end_thread, unsigned ctaid,
-                                 int cta_size, kernel_info_t &kernel) {
+                                 int cta_size, kernel_info_t &kernel, int &starting_pc) {
   //
   address_type start_pc = next_pc(start_thread);
   unsigned kernel_id = kernel.get_uid();
@@ -1237,7 +1240,6 @@ void shader_core_ctx::decode() {
           //if(pI2->op==BARRIER_OP||pI2->op==CALL_OPS||pI2->op==RET_OPS||pI2->op==EXIT_OPS)
             m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_increment_control_inst();
           }
-
         }
 
 
@@ -1300,7 +1302,6 @@ void shader_core_ctx::decode() {
             //if(pI2->op==BARRIER_OP||pI2->op==CALL_OPS||pI2->op==RET_OPS||pI2->op==EXIT_OPS)
               m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_increment_control_inst();
             }
-
           }
           else
             break;
@@ -1543,6 +1544,7 @@ void shader_core_ctx::fetch() {
         m_inst_fetch_buffer =
         ifetch_buffer_t(m_warp[mf->get_wid()]->last_pc_decoded_streaming,
         mf->get_access_size(), mf->get_wid());
+
         assert(m_warp[mf->get_wid()]->last_pc_decoded_streaming ==
              (mf->get_addr() -
               PROGRAM_MEM_START));
@@ -1608,7 +1610,7 @@ void shader_core_ctx::fetch() {
           // STREAMING CODE
             // if (!m_warp[warp_id]->functional_done() &&
             // !m_warp[warp_id]->imiss_pending() &&
-            // ((!m_warp[warp_id]->warp_inst_retired && m_warp[warp_id]->ibuffer_has_space_streaming_OOO()) || (m_warp[warp_id]->warp_inst_retired && m_warp[warp_id]->ibuffer_empty_streaming_OOO())))
+          //((!m_warp[warp_id]->warp_inst_retired && m_warp[warp_id]->ibuffer_has_space_streaming_OOO()) || (m_warp[warp_id]->warp_inst_retired && m_warp[warp_id]->ibuffer_empty_streaming_OOO())))
          #endif
 
       #ifdef IB_OOO_FULL
@@ -1626,7 +1628,12 @@ void shader_core_ctx::fetch() {
         #ifndef HAWS_ON
         if (!m_warp[warp_id]->functional_done() &&
             !m_warp[warp_id]->imiss_pending() &&
-            ((!m_warp[warp_id]->warp_inst_retired && m_warp[warp_id]->ibuffer_has_space_streaming_full_OOO()) || (m_warp[warp_id]->warp_inst_retired && m_warp[warp_id]->ibuffer_empty_streaming_full_OOO())))
+            (
+              (((!m_warp[warp_id]->warp_inst_retired && m_warp[warp_id]->ibuffer_has_space_streaming_full_OOO()) || (m_warp[warp_id]->warp_inst_retired && m_warp[warp_id]->ibuffer_empty_streaming_full_OOO())) && m_config->streaming_ib)
+              ||
+              ((m_warp[warp_id]->ibuffer_empty_streaming_full_OOO()) && !m_config->streaming_ib)
+            )
+        )
         #endif
         #ifdef HAWS_ON
         if (!m_warp[warp_id]->functional_done() &&
@@ -1979,6 +1986,9 @@ void shader_core_ctx::issue_warp_ibuffer_OOO_in_order(register_set &pipe_reg_set
     m_warp[warp_id]->set_membar();
   }
   int checker = 0;
+
+  // if(warp_id == 0 && sid==0)
+  //   cout <<"CHECK_ISSUE "<<(*pipe_reg)->pc<<" "<<(*pipe_reg)->get_active_mask()<<" "<<next_inst->get_active_mask()<<"\n";
 
   const active_mask_t active_mask1 = active_mask;
 
@@ -2335,6 +2345,9 @@ void shader_core_ctx::issue_warp_push_in_DEB_IB_OOO(const warp_inst_t *next_inst
   // fill inst in OOO replay buffer
 
   const active_mask_t active_mask1 = active_mask;
+
+  // if(warp_id == 0 && sid==0)
+  //   cout <<"CHECK_ISSUE "<<(next_inst)->pc<<" "<<active_mask<<" "<<next_inst->get_active_mask()<<"\n";
   
 // dont need to full and free for full OOO IB
 #ifndef IB_OOO_FULL
@@ -2342,12 +2355,14 @@ void shader_core_ctx::issue_warp_push_in_DEB_IB_OOO(const warp_inst_t *next_inst
 
   m_warp[warp_id]->ibuffer_free_OOO(inst_loc);
 
-  m_warp[warp_id]->set_active_mask(active_mask,id);
+  //m_warp[warp_id]->set_active_mask(active_mask,id);
+  m_warp[warp_id]->set_active_mask(next_inst->get_active_mask(),id);
   // move instructions index up
   m_warp[warp_id]->ibuffer_decrease_all_index_IB_IN_OOO(inst_index,warp_id);
 #endif
 #ifdef IB_OOO_FULL
-  m_warp[warp_id]->set_active_mask(active_mask,inst_loc);
+  //m_warp[warp_id]->set_active_mask(active_mask,inst_loc);
+  m_warp[warp_id]->set_active_mask(next_inst->get_active_mask(),inst_loc);
 #endif
 
   m_warp[warp_id]->set_next_pc(next_inst->pc + next_inst->isize);
@@ -2561,6 +2576,7 @@ void shader_core_ctx::issue_warp_push_from_replay_DEB_IB_OOO(register_set &pipe_
   (*pipe_reg)->set_sid(sid);
   (*pipe_reg)->set_wid(warp_id);
   (*pipe_reg)->set_cluster_id(m_cluster_id);
+  (*pipe_reg)->set_active_mask(active_mask);
   (*pipe_reg)->issue_push_from_replay(active_mask, warp_id,
                      m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle,
                      m_warp[warp_id]->get_dynamic_warp_id(),
@@ -2576,6 +2592,9 @@ void shader_core_ctx::issue_warp_push_from_replay_DEB_IB_OOO(register_set &pipe_
   } else if (next_inst->op == MEMORY_BARRIER_OP) {
     m_warp[warp_id]->set_membar();
   }
+
+  // if(warp_id == 0 && sid==0)
+  //   cout <<"CHECK_ISSUE "<<(next_inst)->pc<<" "<<(*pipe_reg)->get_active_mask()<<" "<<active_mask<<"\n";
 
   m_scoreboard->get_dep_distance(warp_id, next_inst, m_cluster_id, sid, stalls_between_issues, 1, m_warp[warp_id]->get_ibuffer_inst_number(index_loc), m_warp[warp_id]->get_ibuffer_stall_cycles(index_loc));
 
@@ -3707,7 +3726,7 @@ void scheduler_unit::cycle(int m_cluster_id, int sched_num) {
         //pI = warp(warp_id).ibuffer_next_inst();
         pI = warp(warp_id).ibuffer_next_inst_streaming();
         ibuffer_steaming_id = warp(warp_id).ibuffer_next_id_streaming();
-        // incremement total inst picked up for issuing
+        // incremement total inst picked up for issuing THIS IS CORRECT Ishita
         m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;
         //if(issued == 0)
         //   //last_exec_inst = warp(warp_id).ibuffer_next_inst();
@@ -3741,10 +3760,10 @@ void scheduler_unit::cycle(int m_cluster_id, int sched_num) {
       is_store = (pI->op == STORE_OP);
 
 
-      if(pI)
-      {
-        verify_stall(warp_id, exec_unit_type_t::NONE, m_cluster_id, m_shader->get_sid(), 0);
-      }
+      // if(pI)
+      // {
+      //   verify_stall(warp_id, exec_unit_type_t::NONE, m_cluster_id, m_shader->get_sid(), 0);
+      // }
 
       // OOO reorder buffer
       // if replay buffer has a store or incoming instuction is a store and replay buffer has memory instructions in it, put the current instruction in the replay buffer
@@ -4180,7 +4199,6 @@ void scheduler_unit::cycle(int m_cluster_id, int sched_num) {
         //     {
         //       //last_exec_inst = warp(warp_id).ibuffer_check_indep_inst();
         //       last_exec_inst = warp(warp_id).ibuffer_check_indep_inst_streaming();
-        //       m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;
         //       consec_inst_indep = true;
         //       //if(warp(warp_id).ibuffer_count() > 1)
         //       if(warp(warp_id).ibuffer_count_streaming() > 1)
@@ -4213,7 +4231,7 @@ void scheduler_unit::cycle(int m_cluster_id, int sched_num) {
           {
             //last_exec_inst = warp(warp_id).ibuffer_check_indep_inst();
             last_exec_inst = warp(warp_id).ibuffer_check_indep_inst_streaming();
-            m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;
+
             consec_inst_indep = true;
             //if(warp(warp_id).ibuffer_count() > 1)
             if(warp(warp_id).ibuffer_count_streaming() > 1)
@@ -4325,7 +4343,6 @@ void scheduler_unit::cycle(int m_cluster_id, int sched_num) {
             int num_cycles = warp(warp_num).get_ibuffer_pushed();
             int num_stores = warp(warp_num).replay_buffer_get_store();
             m_shader->issue_warp_push_in_replay_OOO(*m_mem_out, pI, active_mask, warp_num, m_id, id, pc_num, m_shader->get_sid(),0,m_cluster_id,tail,num_stores,num_cycles);
-            m_stats->m_num_put_inst_in_DEB[m_shader->get_sid()]++;
             gpu_sim_insn_test = gpu_sim_insn_test + active_mask.count();
         }
       }
@@ -4364,6 +4381,7 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
   bool no_push_done_exit = 0;
   bool warp_waiting_test = 0;
   int cycles_spent_in_ib = 0;
+  WAR_or_WAW_found = false;
 
   int ibuffer_steaming_id = -1;
 
@@ -4391,7 +4409,7 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
 
   std::vector<int> warp_problem;
   std::vector<int> loc_issue;
-  std::vector<vector<int>> loc_dep_on;
+  std::vector<std::vector<int>> loc_dep_on;
 
   int warp_id_issued;
 
@@ -4414,7 +4432,9 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
   bool collision_check = false;
   bool check_collision_prev = false;
 
-  unsigned max_issue = m_shader->m_config->gpgpu_max_insn_issue_per_warp;
+  //unsigned max_issue = m_shader->m_config->gpgpu_max_insn_issue_per_warp;
+
+  unsigned max_issue = 1;
 
   for(int i=0;i<100;i++)
   {
@@ -4597,7 +4617,7 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
         pI = warp(warp_id).ibuffer_next_inst_OOO(inst_loc);
 
         // incremement total inst picked up for issuing
-        m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;
+        //m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++; // Ishita
         if (pI && pI->m_is_cdp && warp(warp_id).m_cdp_latency > 0) {
           assert(warp(warp_id).m_cdp_dummy);
           warp(warp_id).m_cdp_latency--;
@@ -4626,6 +4646,7 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
       is_store = (pI->op == STORE_OP);
 
       bool is_sync_inst = (pI->op==BRANCH_OP||pI->op==BARRIER_OP||pI->op==CALL_OPS||pI->op==RET_OPS||pI->op==EXIT_OPS);
+
       //bool is_sync_inst = (pI->op==BARRIER_OP||pI->op==CALL_OPS||pI->op==RET_OPS||pI->op==EXIT_OPS);
 
       // bool is_non_mem;
@@ -4668,7 +4689,7 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
       // }
 
       // compare addrs of inst and inst being waited on to check for true data dependence
-      bool checkAddrAndDecide = false;
+      bool checkAddrAndDecide = m_shader->m_config->perfect_memory_aliasing;
       bool depExists = true;
       bool checkedInside = false;
       #ifndef IB_OOO_FULL
@@ -4961,6 +4982,8 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
           bool replay_collision = true;
           bool repaly_coll_mem = false;
           bool replay_coll_comp = false;
+          bool replay_WAR_or_WAW_found = false;
+          bool check_for_WAW_deps = false;
           if(!m_shader->m_config->gpgpu_reply_buffer)
             replay_collision = false;
           else
@@ -4979,9 +5002,15 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
             replay_collision = m_scoreboard->checkReplayCollision(warp_id, pI,replayInst);
             repaly_coll_mem = m_scoreboard->checkReplayCollision(warp_id, pI,replayInstMem);
             replay_coll_comp = m_scoreboard->checkReplayCollision(warp_id, pI,replayInstComp);
+            replay_WAR_or_WAW_found = m_scoreboard->check_WAR_or_WAW_replay(warp_id, pI,replayInst);
 
             warp(warp_id).set_DEB_dep_bit(replay_collision);
           }
+
+          check_for_WAW_deps = m_scoreboard->check_for_WAW_deps(warp_id, pI);
+          if(replay_WAR_or_WAW_found && check_for_WAW_deps)
+            WAR_or_WAW_found = true;
+
 
           std::vector<int> ResMem = (m_scoreboard->checkCollisionMem(warp_id, pI));
           if(ResMem[0] || repaly_coll_mem){
@@ -5301,7 +5330,6 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
           }
           if(!issued_inst && pI && m_shader->m_config->gpgpu_reply_buffer && !m_shader->isSyncInst(pI,int(warp_id))) // currently in use
           {
-            m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;
             {
               indep_instructions.push_back(pI);
               indep_warp_num.push_back(warp_id);
@@ -5556,7 +5584,6 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
             // set control bit
             warp(warp_num).set_control_bit(inst_loc);
             m_shader->issue_warp_push_in_DEB_IB_OOO(pI,active_mask,warp_num,m_id,id,pc_num,m_shader->get_sid(),m_cluster_id,tail,inst_loc,inst_idx);
-            m_stats->m_num_put_inst_in_DEB[m_shader->get_sid()]++;
             gpu_sim_insn_test = gpu_sim_insn_test + active_mask.count();
         }
       }
@@ -5581,6 +5608,9 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
   if(issued_inst)
   {
     issued_warp[m_cluster_id][sched_num] = 1;
+    //#ifdef IB_OOO_FULL
+      m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;  //Ishita
+    //#endif
   }
 
   //  && m_shader->get_sid() == 0 && m_cluster_id == 0 && get_schd_id() == 0
@@ -5622,7 +5652,15 @@ void scheduler_unit::cycle_ibuffer_OOO(int m_cluster_id, int sched_num) {
     if(idle > 0)
       stallData[m_shader->get_sid()][m_id][idle_stall]++;
 
+    if(mem_data_stall > 0 || comp_data_stall > 0)
+      stallData[m_shader->get_sid()][m_id][mem_stalls]++;
+    if(ibuffer_stall > 0 || comp_str_stall > 0 || mem_str_stall > 0 || waiting_warp > 0 || idle > 0)
+      stallData[m_shader->get_sid()][m_id][other_stalls]++;
+
     stallData[m_shader->get_sid()][m_id][total_stalls]++;
+
+    if(WAR_or_WAW_found)
+      WAR_and_WAW_stalls++;
 
     mem_data_stall = 0;
     ibuffer_stall = 0;
@@ -5649,6 +5687,8 @@ int scheduler_unit::replay_ib_inst(int m_cluster_id, int sched_num, int &warp_id
   bool cannot_issue_warp_DEB_dep_test = 0;
   bool no_push_done_exit = 0;
   bool warp_waiting_test = 0;
+
+  active_mask_t active_mask1;
 
   bool something_can_be_pushed = false;
   bool consec_inst_indep = false;
@@ -5823,6 +5863,8 @@ while (
 
         int total_tail = warp(warp_id).replay_buffer_get_tail_IB_DEB_OOO();
 
+        //m_stats->m_num_tried_to_issue_insn[m_shader->get_sid()]++;
+
         //verify_stall(warp_id, previous_issued_inst_exec_type,m_cluster_id);
 
       #ifndef IB_OOO_FULL
@@ -5833,7 +5875,6 @@ while (
       #endif
 
         pI = warp(warp_id).ibuffer_next_inst_OOO(inst_loc);
-        m_stats->m_num_tried_to_issue_DEB[m_shader->get_sid()]++;
         // Jin: handle cdp latency;
         if (pI && pI->m_is_cdp && warp(warp_id).m_cdp_latency > 0) {
           assert(warp(warp_id).m_cdp_dummy);
@@ -5880,6 +5921,8 @@ while (
           std::vector<const warp_inst_t *> replayInstComp;
           bool repaly_coll_mem = false;
           bool replay_coll_comp = false;
+          bool replay_WAR_or_WAW_found = false;
+          bool check_for_WAW_deps = false;
 
           #ifndef IB_OOO_FULL
             //std::vector<const warp_inst_t *> replayInst = warp(warp_id).get_Replay_buffer_Inst_IB_OOO(replay_index);
@@ -5890,6 +5933,7 @@ while (
             replay_collision = m_scoreboard->checkReplayCollision(warp_id, pI,replayInst);
             repaly_coll_mem = m_scoreboard->checkReplayCollision(warp_id, pI,replayInstMem);
             replay_coll_comp = m_scoreboard->checkReplayCollision(warp_id, pI,replayInstComp);
+            replay_WAR_or_WAW_found = m_scoreboard->check_WAR_or_WAW_replay(warp_id, pI,replayInst);
             
           #endif
           #ifdef IB_OOO_FULL
@@ -5900,8 +5944,13 @@ while (
             replay_collision = m_scoreboard->checkReplayCollision(warp_id, pI,replayInst);
             repaly_coll_mem = m_scoreboard->checkReplayCollision(warp_id, pI,replayInstMem);
             replay_coll_comp = m_scoreboard->checkReplayCollision(warp_id, pI,replayInstComp);
+            replay_WAR_or_WAW_found = m_scoreboard->check_WAR_or_WAW_replay(warp_id, pI,replayInst);
             
           #endif
+
+          check_for_WAW_deps = m_scoreboard->check_for_WAW_deps(warp_id, pI);
+          if(replay_WAR_or_WAW_found && check_for_WAW_deps)
+            WAR_or_WAW_found = true; 
 
           std::vector<int> ResMem = (m_scoreboard->checkCollisionMem(warp_id, pI));
           if(ResMem[0] || repaly_coll_mem){
@@ -5964,7 +6013,7 @@ while (
         #endif
 
         // compare addrs of inst and inst being waited on to check for true data dependence
-        bool checkAddrAndDecide = false;
+        bool checkAddrAndDecide = m_shader->m_config->perfect_memory_aliasing;
         bool depExists = true;
         bool checkedInside = false;
         if(checkAddrAndDecide)
@@ -6139,6 +6188,7 @@ while (
             //     m_shader->get_active_mask(warp_id, pI);
 
             const active_mask_t &active_mask = warp(warp_id).get_active_mask(inst_loc);
+            active_mask1 = active_mask;
 
             assert(warp(warp_id).inst_in_pipeline());
 
@@ -6993,7 +7043,6 @@ bool scheduler_unit::replay_buffer_cycle(int m_cluster_id, int MEM_ON, int mem_d
         //verify_stall(warp_id, previous_issued_inst_exec_type,m_cluster_id);
 
         pI = warp(warp_id).replay_buffer_next_inst();
-        m_stats->m_num_tried_to_issue_DEB[m_shader->get_sid()]++;
         if(issued == 0)
           last_exec_inst = warp(warp_id).replay_buffer_next_inst();
         // Jin: handle cdp latency;
@@ -7454,7 +7503,6 @@ bool scheduler_unit::replay_buffer_cycle_OOO(int m_cluster_id, int MEM_ON, int m
         replay_loc = warp(warp_id).replay_buffer_index_OOO(replay_index,warp_id);
 
         pI = warp(warp_id).replay_buffer_next_inst_OOO(replay_loc);
-        m_stats->m_num_tried_to_issue_DEB[m_shader->get_sid()]++;
         // Jin: handle cdp latency;
         if (pI && pI->m_is_cdp && warp(warp_id).m_cdp_latency > 0) {
           assert(warp(warp_id).m_cdp_dummy);
@@ -7897,7 +7945,6 @@ bool scheduler_unit::replay_buffer_cycle_DEB_dep(int m_cluster_id, int MEM_ON, i
         //verify_stall(warp_id, previous_issued_inst_exec_type,m_cluster_id);
 
         pI = warp(warp_id).replay_buffer_next_inst();
-        m_stats->m_num_tried_to_issue_DEB[m_shader->get_sid()]++;
         if(issued == 0)
           last_exec_inst = warp(warp_id).replay_buffer_next_inst();
         // Jin: handle cdp latency;
@@ -8591,6 +8638,7 @@ void shader_core_ctx::execute() {
   for (unsigned i = 0; i < num_result_bus; i++) {
     *(m_result_bus[i]) >>= 1;
   }
+
   for (unsigned n = 0; n < m_num_function_units; n++) {
     unsigned multiplier = m_fu[n]->clock_multiplier();
     for (unsigned c = 0; c < multiplier; c++) m_fu[n]->cycle();
@@ -8733,7 +8781,6 @@ void shader_core_ctx::writeback() {
     {
       memory_cycle_cycle = memory_cycle_cycle + (cycles_passed - pipe_reg->get_cycle_issued());
     }
-
     m_warp[warp_id]->dec_inst_in_pipeline();
     warp_inst_complete(*pipe_reg);
     m_gpu->gpu_sim_insn_last_update_sid = m_sid;
@@ -9321,7 +9368,9 @@ void pipelined_simd_unit::cycle() {
   }
   if (active_insts_in_pipeline) {
     for (unsigned stage = 0; (stage + 1) < m_pipeline_depth; stage++)
+    {
       move_warp(m_pipeline_reg[stage], m_pipeline_reg[stage + 1]);
+    }
   }
   if (!m_dispatch_reg->empty()) {
     if (!m_dispatch_reg->dispatch_delay()) {

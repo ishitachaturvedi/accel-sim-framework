@@ -42,6 +42,7 @@ typedef void *yyscan_t;
 
 #include "../../libcuda/gpgpu_context.h"
 #include "cuda-sim.h"
+#include <iostream>
 
 #define STR_SIZE 1024
 

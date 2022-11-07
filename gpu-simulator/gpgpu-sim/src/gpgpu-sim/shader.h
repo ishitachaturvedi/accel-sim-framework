@@ -107,13 +107,25 @@ class thread_ctx_t {
 
 class shd_warp_t {
  public:
-  shd_warp_t(class shader_core_ctx *shader, unsigned warp_size)
+  shd_warp_t(class shader_core_ctx *shader, unsigned warp_size, int ib_size, int ib_size_in, int ib_size_ooo)
       : m_shader(shader), m_warp_size(warp_size) {
     m_stores_outstanding = 0;
     m_inst_in_pipeline = 0;
     warp_inst_retired = 0;
     num_inst_exec = 0;
-    
+    m_ibuffer.resize(ib_size);
+    m_ibuffer_streaming.resize(ib_size);
+    ibuffer_OOO.resize(ib_size);
+
+    replay_buffer.resize(ib_size);
+    replay_buffer_mem.resize(ib_size);
+    replay_buffer_OOO.resize(ib_size);
+    ibuffer_OOO_1.resize(ib_size);
+
+    IBUFFER_SIZE = ib_size;
+    IBUFFER_SIZE_IN_ORDER = ib_size_in;
+    IBUFFER_SIZE_OOO_ORDER = ib_size_ooo;
+
     reset();
   }
   void reset() {
@@ -2017,34 +2029,6 @@ class shd_warp_t {
 
   class shader_core_ctx * get_shader() { return m_shader; }
 
-  unsigned last_pc_decoded_streaming;
-  unsigned last_pc_decoded_streaming_test;
-  unsigned stalls_between_issues;
-  unsigned num_inst_OOO;
-  int stalled_on_replay;
-  int warp_stuck_replay;
- private:
-  static const unsigned IBUFFER_SIZE = 2;
-  static const unsigned IBUFFER_SIZE_IN_ORDER = 2;
-  static const unsigned IBUFFER_SIZE_OOO_ORDER = 0;
-
-  static const unsigned REPLAY_BUFFER_SIZE = 2  ;	// also change DEB_BUFFER_SIZE size in main.cc
-  static const unsigned REPLAY_BUFFER_SIZE_MEM = 1;
-  class shader_core_ctx *m_shader;
-  unsigned m_cta_id;
-  
-  unsigned m_warp_id;
-  unsigned m_warp_size;
-  unsigned m_dynamic_warp_id;
-
-  address_type m_next_pc;
-  unsigned n_completed;  // number of threads in warp completed
-  std::bitset<MAX_WARP_SIZE> m_active_threads;
-
-  bool m_imiss_pending;
-  bool DEB_dep;
-  int num_inst_exec_warp;
-
   struct ibuffer_entry {
     ibuffer_entry() {
       m_valid = false;
@@ -2148,14 +2132,64 @@ class shd_warp_t {
     int m_pushed_out;
   };
 
+  unsigned last_pc_decoded_streaming;
+  unsigned last_pc_decoded_streaming_test;
+  unsigned stalls_between_issues;
+  unsigned num_inst_OOO;
+  int stalled_on_replay;
+  int warp_stuck_replay;
+
+  unsigned IBUFFER_SIZE;
+  unsigned IBUFFER_SIZE_IN_ORDER;
+  unsigned IBUFFER_SIZE_OOO_ORDER;
+
+  vector<replay_buffer_entry>replay_buffer;
+  vector<replay_buffer_entry_mem>replay_buffer_mem;
+  vector<replay_buffer_entry_OOO>replay_buffer_OOO;
+  vector<replay_buffer_entry>ibuffer_OOO_1;
+
+
+  vector<ibuffer_entry>m_ibuffer;
+  vector<ibuffer_entry>m_ibuffer_streaming;
+  vector<ibuffer_entry_OOO>ibuffer_OOO;
+
+ private:
+
+  // static const unsigned IBUFFER_SIZE = IBUFFER_SIZE_dynamic;
+  // static const unsigned IBUFFER_SIZE_IN_ORDER = IBUFFER_SIZE_IN_ORDER_dynamic;
+  // static const unsigned IBUFFER_SIZE_OOO_ORDER = IBUFFER_SIZE_OOO_ORDER_dynamic;
+
+  static const unsigned REPLAY_BUFFER_SIZE = 2  ;	// also change DEB_BUFFER_SIZE size in main.cc
+  static const unsigned REPLAY_BUFFER_SIZE_MEM = 1;
+  class shader_core_ctx *m_shader;
+  unsigned m_cta_id;
+  
+  unsigned m_warp_id;
+  unsigned m_warp_size;
+  unsigned m_dynamic_warp_id;
+
+  address_type m_next_pc;
+  unsigned n_completed;  // number of threads in warp completed
+  std::bitset<MAX_WARP_SIZE> m_active_threads;
+
+  bool m_imiss_pending;
+  bool DEB_dep;
+  int num_inst_exec_warp;
+
   warp_inst_t m_inst_at_barrier;
-  ibuffer_entry m_ibuffer[IBUFFER_SIZE];
-  ibuffer_entry m_ibuffer_streaming[IBUFFER_SIZE];
-  replay_buffer_entry replay_buffer[REPLAY_BUFFER_SIZE];
-  replay_buffer_entry_mem replay_buffer_mem[REPLAY_BUFFER_SIZE_MEM];	
-  replay_buffer_entry_OOO replay_buffer_OOO[REPLAY_BUFFER_SIZE];
-  ibuffer_entry_OOO ibuffer_OOO[IBUFFER_SIZE];
-  replay_buffer_entry ibuffer_OOO_1[IBUFFER_SIZE];
+  // ibuffer_entry m_ibuffer[IBUFFER_SIZE];
+  // ibuffer_entry m_ibuffer_streaming[IBUFFER_SIZE];
+  // ibuffer_entry_OOO ibuffer_OOO[IBUFFER_SIZE];
+
+  // ibuffer_entry m_ibuffer[IBUFFER_SIZE];
+  // ibuffer_entry m_ibuffer_streaming[IBUFFER_SIZE];
+  // ibuffer_entry_OOO ibuffer_OOO[IBUFFER_SIZE];
+  
+  // replay_buffer_entry replay_buffer[REPLAY_BUFFER_SIZE];
+  // replay_buffer_entry_mem replay_buffer_mem[REPLAY_BUFFER_SIZE_MEM];	
+  // replay_buffer_entry_OOO replay_buffer_OOO[REPLAY_BUFFER_SIZE];
+  // replay_buffer_entry ibuffer_OOO_1[IBUFFER_SIZE];
+
   unsigned m_next;	
   unsigned replay_m_next;	
   unsigned replay_m_fill_next;
@@ -3582,6 +3616,12 @@ class shader_core_config : public core_config {
   unsigned n_simt_ejection_buffer_size;
   unsigned ldst_unit_response_queue_size;
 
+  int ib_size_config;
+  int ib_size_ooo;
+  int ib_size_in;
+  int streaming_ib;
+  int perfect_memory_aliasing;
+
   int simt_core_sim_order;
 
   unsigned smem_latency;
@@ -4371,7 +4411,7 @@ class shader_core_ctx : public core_t {
   // (execution-driven vs trace-driven)
   virtual void init_warps(unsigned cta_id, unsigned start_thread,
                           unsigned end_thread, unsigned ctaid, int cta_size,
-                          kernel_info_t &kernel);
+                          kernel_info_t &kernel, int& stating_pc);
   virtual void checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned t,
                                              unsigned tid) = 0;
   virtual void checkExecutionStatusAndUpdate_for_pc(warp_inst_t &inst, unsigned t,

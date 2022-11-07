@@ -147,9 +147,6 @@ void power_config::reg_options(class OptionParser *opp) {
                          &g_power_per_cycle_dump,
                          "Dump detailed power output each cycle", "0");
 
-
-
-
   option_parser_register(opp, "-hw_perf_file_name", OPT_CSTR,
                          &g_hw_perf_file_name, "Hardware Performance Statistics file",
                          "hw_perf.csv");
@@ -461,6 +458,16 @@ void shader_core_config::reg_options(class OptionParser *opp) {
       "Maximum number of named barriers per CTA (default 16)", "16");
   option_parser_register(opp, "-gpgpu_n_clusters", OPT_UINT32, &n_simt_clusters,
                          "number of processing clusters", "10");
+  option_parser_register(opp, "-gpgpu_ib_size_config", OPT_UINT32, &ib_size_config,
+                         "Size of instruction buffer", "4");
+  option_parser_register(opp, "-gpgpu_ib_size_ooo", OPT_UINT32, &ib_size_ooo,
+                         "Size of instruction buffer OOO", "0");
+  option_parser_register(opp, "-gpgpu_ib_size_in", OPT_UINT32, &ib_size_in,
+                         "Size of instruction buffer in-order", "4");
+  option_parser_register(opp, "-gpgpu_streaming_ib", OPT_UINT32, &streaming_ib,
+                         "Streaming instruction buffer ON", "1");
+  option_parser_register(opp, "-gpgpu_perfect_aliasing", OPT_UINT32, &perfect_memory_aliasing,
+                         "Perfect memory aliasing on", "0");
   option_parser_register(opp, "-gpgpu_n_cores_per_cluster", OPT_UINT32,
                          &n_simt_cores_per_cluster,
                          "number of simd cores per cluster", "3");
@@ -1132,7 +1139,7 @@ bool gpgpu_sim::active() {
       (gpu_tot_sim_cycle + gpu_sim_cycle) >= m_config.gpu_max_cycle_opt)
     return false;
   if (m_config.gpu_max_insn_opt &&
-      (gpu_tot_sim_insn + gpu_sim_insn) >= m_config.gpu_max_insn_opt)
+      tot_inst_exec >= m_config.gpu_max_insn_opt)
     return false;
   if (m_config.gpu_max_cta_opt &&
       (gpu_tot_issued_cta >= m_config.gpu_max_cta_opt))
@@ -1161,7 +1168,6 @@ void gpgpu_sim::init() {
   ibuffer_empty_kernel = 0;
   gen_mem_icache_kernel = 0;
 
-  ICNT_TO_MEM_count_kernel = 0;
   ICNT_TO_MEM_cycles_kernel = 0;
   ROP_DELAY_count_kernel = 0;
   ROP_DELAY_cycle_kernel = 0;
@@ -1240,7 +1246,6 @@ void gpgpu_sim::update_stats() {
   ibuffer_empty_kernel = 0;
   gen_mem_icache_kernel = 0;
 
-  ICNT_TO_MEM_count_kernel = 0;
   ICNT_TO_MEM_cycles_kernel = 0;
   ROP_DELAY_count_kernel = 0;
   ROP_DELAY_cycle_kernel = 0;
@@ -1459,12 +1464,12 @@ void gpgpu_sim::clear_executed_kernel_info() {
   m_executed_kernel_uids.clear();
 }
 void gpgpu_sim::gpu_print_stat() {
+
   FILE *statfout = stdout;
 
   std::string kernel_info_str = executed_kernel_info_string();
   fprintf(statfout, "%s", kernel_info_str.c_str());
 
-  printf("gpu_sim_cycle = %lld\n", gpu_sim_cycle);
   printf("gpu_sim_insn = %lld\n", gpu_sim_insn);
   printf("gpu_ipc = %12.4f\n", (float)gpu_sim_insn / gpu_sim_cycle);
   printf("gpu_tot_sim_cycle = %lld\n", gpu_tot_sim_cycle + gpu_sim_cycle);
@@ -1565,77 +1570,77 @@ void gpgpu_sim::gpu_print_stat() {
 #endif
 
   // performance counter that are not local to one shader
-  m_memory_stats->memlatstat_print(m_memory_config->m_n_mem,
-                                   m_memory_config->nbk);
-  for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
-    m_memory_partition_unit[i]->print(stdout);
+  // m_memory_stats->memlatstat_print(m_memory_config->m_n_mem,
+  //                                  m_memory_config->nbk);
+  // for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
+  //   m_memory_partition_unit[i]->print(stdout);
 
-  // L2 cache stats
-  if (!m_memory_config->m_L2_config.disabled()) {
-    cache_stats l2_stats;
-    struct cache_sub_stats l2_css;
-    struct cache_sub_stats total_l2_css;
-    l2_stats.clear();
-    l2_css.clear();
-    total_l2_css.clear();
+  // // L2 cache stats
+  // if (!m_memory_config->m_L2_config.disabled()) {
+  //   cache_stats l2_stats;
+  //   struct cache_sub_stats l2_css;
+  //   struct cache_sub_stats total_l2_css;
+  //   l2_stats.clear();
+  //   l2_css.clear();
+  //   total_l2_css.clear();
 
-    printf("\n========= L2 cache stats =========\n");
-    for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
-      m_memory_sub_partition[i]->accumulate_L2cache_stats(l2_stats);
-      m_memory_sub_partition[i]->get_L2cache_sub_stats(l2_css);
+  //   printf("\n========= L2 cache stats =========\n");
+  //   for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
+  //     m_memory_sub_partition[i]->accumulate_L2cache_stats(l2_stats);
+  //     m_memory_sub_partition[i]->get_L2cache_sub_stats(l2_css);
 
-      fprintf(stdout,
-              "L2_cache_bank[%d]: Access = %llu, Miss = %llu, Miss_rate = "
-              "%.3lf, Pending_hits = %llu, Reservation_fails = %llu\n",
-              i, l2_css.accesses, l2_css.misses,
-              (double)l2_css.misses / (double)l2_css.accesses,
-              l2_css.pending_hits, l2_css.res_fails);
-      l2_cache_bank_access = l2_cache_bank_access + l2_css.accesses;	
-      l2_cache_bank_miss = l2_cache_bank_miss + l2_css.misses;
-      total_l2_css += l2_css;
-    }
-    if (!m_memory_config->m_L2_config.disabled() &&
-        m_memory_config->m_L2_config.get_num_lines()) {
-      // L2c_print_cache_stat();
-      printf("L2_total_cache_accesses = %llu\n", total_l2_css.accesses);
-      L2_total_cache_accesses += total_l2_css.accesses;
-      L2_total_cache_misses += total_l2_css.misses;	
-      l2_cache_access = l2_cache_access + total_l2_css.accesses;	
-      L2_cache_access_total_Ishita = L2_cache_access_total_Ishita + total_l2_css.accesses; 	
-      l2_cache_miss = l2_cache_miss + total_l2_css.misses;	
-      L2_cache_access_miss_Ishita = L2_cache_access_miss_Ishita + total_l2_css.misses; 	
-      L2_cache_access_pending_Ishita = L2_cache_access_pending_Ishita + total_l2_css.pending_hits; 	
-      l2_pending = l2_pending + total_l2_css.pending_hits;	
-      L2_cache_access_resfail_Ishita = L2_cache_access_resfail_Ishita + total_l2_css.res_fails;	
-      l2_res_fail = l2_res_fail + total_l2_css.res_fails;	
-      L2_cache_access_resfail_Ishita = L2_cache_access_resfail_Ishita + total_l2_css.res_fails;
-      L2_total_cache_pending_hits += total_l2_css.pending_hits;
-      L2_total_cache_reservation_fails += total_l2_css.res_fails;
-      printf("L2_total_cache_misses = %llu\n", total_l2_css.misses);
-      if (total_l2_css.accesses > 0)
-        printf("L2_total_cache_miss_rate = %.4lf\n",
-               (double)total_l2_css.misses / (double)total_l2_css.accesses);
-      printf("L2_total_cache_pending_hits = %llu\n", total_l2_css.pending_hits);
-      printf("L2_total_cache_reservation_fails = %llu\n",
-             total_l2_css.res_fails);
-      printf("L2_total_cache_breakdown:\n");
-      l2_stats.print_stats(stdout, "L2_cache_stats_breakdown");
-      printf("L2_total_cache_reservation_fail_breakdown:\n");
-      l2_stats.print_fail_stats(stdout, "L2_cache_stats_fail_breakdown");
-      total_l2_css.print_port_stats(stdout, "L2_cache");
-    }
-  }
+  //     fprintf(stdout,
+  //             "L2_cache_bank[%d]: Access = %llu, Miss = %llu, Miss_rate = "
+  //             "%.3lf, Pending_hits = %llu, Reservation_fails = %llu\n",
+  //             i, l2_css.accesses, l2_css.misses,
+  //             (double)l2_css.misses / (double)l2_css.accesses,
+  //             l2_css.pending_hits, l2_css.res_fails);
+  //     l2_cache_bank_access = l2_cache_bank_access + l2_css.accesses;	
+  //     l2_cache_bank_miss = l2_cache_bank_miss + l2_css.misses;
+  //     total_l2_css += l2_css;
+  //   }
+  //   if (!m_memory_config->m_L2_config.disabled() &&
+  //       m_memory_config->m_L2_config.get_num_lines()) {
+  //     // L2c_print_cache_stat();
+  //     printf("L2_total_cache_accesses = %llu\n", total_l2_css.accesses);
+  //     L2_total_cache_accesses += total_l2_css.accesses;
+  //     L2_total_cache_misses += total_l2_css.misses;	
+  //     l2_cache_access = l2_cache_access + total_l2_css.accesses;	
+  //     L2_cache_access_total_Ishita = L2_cache_access_total_Ishita + total_l2_css.accesses; 	
+  //     l2_cache_miss = l2_cache_miss + total_l2_css.misses;	
+  //     L2_cache_access_miss_Ishita = L2_cache_access_miss_Ishita + total_l2_css.misses; 	
+  //     L2_cache_access_pending_Ishita = L2_cache_access_pending_Ishita + total_l2_css.pending_hits; 	
+  //     l2_pending = l2_pending + total_l2_css.pending_hits;	
+  //     L2_cache_access_resfail_Ishita = L2_cache_access_resfail_Ishita + total_l2_css.res_fails;	
+  //     l2_res_fail = l2_res_fail + total_l2_css.res_fails;	
+  //     L2_cache_access_resfail_Ishita = L2_cache_access_resfail_Ishita + total_l2_css.res_fails;
+  //     L2_total_cache_pending_hits += total_l2_css.pending_hits;
+  //     L2_total_cache_reservation_fails += total_l2_css.res_fails;
+  //     printf("L2_total_cache_misses = %llu\n", total_l2_css.misses);
+  //     if (total_l2_css.accesses > 0)
+  //       printf("L2_total_cache_miss_rate = %.4lf\n",
+  //              (double)total_l2_css.misses / (double)total_l2_css.accesses);
+  //     printf("L2_total_cache_pending_hits = %llu\n", total_l2_css.pending_hits);
+  //     printf("L2_total_cache_reservation_fails = %llu\n",
+  //            total_l2_css.res_fails);
+  //     printf("L2_total_cache_breakdown:\n");
+  //     l2_stats.print_stats(stdout, "L2_cache_stats_breakdown");
+  //     printf("L2_total_cache_reservation_fail_breakdown:\n");
+  //     l2_stats.print_fail_stats(stdout, "L2_cache_stats_fail_breakdown");
+  //     total_l2_css.print_port_stats(stdout, "L2_cache");
+  //   }
+  // }
 
-  if (m_config.gpgpu_cflog_interval != 0) {
-    spill_log_to_file(stdout, 1, gpu_sim_cycle);
-    insn_warp_occ_print(stdout);
-  }
-  if (gpgpu_ctx->func_sim->gpgpu_ptx_instruction_classification) {
-    StatDisp(gpgpu_ctx->func_sim->g_inst_classification_stat
-                 [gpgpu_ctx->func_sim->g_ptx_kernel_count]);
-    StatDisp(gpgpu_ctx->func_sim->g_inst_op_classification_stat
-                 [gpgpu_ctx->func_sim->g_ptx_kernel_count]);
-  }
+  // if (m_config.gpgpu_cflog_interval != 0) {
+  //   spill_log_to_file(stdout, 1, gpu_sim_cycle);
+  //   insn_warp_occ_print(stdout);
+  // }
+  // if (gpgpu_ctx->func_sim->gpgpu_ptx_instruction_classification) {
+  //   StatDisp(gpgpu_ctx->func_sim->g_inst_classification_stat
+  //                [gpgpu_ctx->func_sim->g_ptx_kernel_count]);
+  //   StatDisp(gpgpu_ctx->func_sim->g_inst_op_classification_stat
+  //                [gpgpu_ctx->func_sim->g_ptx_kernel_count]);
+  // }
 
 #ifdef GPGPUSIM_POWER_MODEL
   if (m_config.g_power_simulation_enabled) {
@@ -1931,7 +1936,8 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   m_barriers.allocate_barrier(free_cta_hw_id, warps);
 
   // initialize the SIMT stacks and fetch hardware
-  init_warps(free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel);
+  int fill_val = -1;
+  init_warps(free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel, fill_val);
   m_n_active_cta++;
 
   shader_CTA_count_log(m_sid, 1);
@@ -1995,7 +2001,6 @@ unsigned long long g_single_step =
 void gpgpu_sim::cycle() {
   print_stall_data = m_shader_config->gpgpu_print_cout_statements;
   int clock_mask = next_clock_domain();
-
   if (clock_mask & CORE) {
     // shader core loading (pop from ICNT into core) follows CORE clock
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
@@ -2069,7 +2074,6 @@ void gpgpu_sim::cycle() {
           m_power_stats->pwr_mem_stat->n_req[CURRENT_STAT_IDX][i]);
     }
   }
-
   // L2 operations follow L2 clock domain
   unsigned partiton_reqs_in_parallel_per_cycle = 0;
   if (clock_mask & L2) {
@@ -2090,8 +2094,6 @@ void gpgpu_sim::cycle() {
         {
           mf->set_cycle_issued(cycles_passed);
           going_from_shader_to_mem--;
-          ICNT_TO_MEM_count = ICNT_TO_MEM_count + 1;
-          ICNT_TO_MEM_count_kernel = ICNT_TO_MEM_count_kernel + 1;
           ICNT_TO_MEM_cycles = gpu_sim_cycle + gpu_tot_sim_cycle - mf->get_status_change_cycle() + ICNT_TO_MEM_cycles;
           ICNT_TO_MEM_cycles_kernel = gpu_sim_cycle + gpu_tot_sim_cycle - mf->get_status_change_cycle() + ICNT_TO_MEM_cycles_kernel;
           if(print_stall_data)
@@ -2108,11 +2110,9 @@ void gpgpu_sim::cycle() {
     partiton_reqs_in_parallel_util += partiton_reqs_in_parallel_per_cycle;
     gpu_sim_cycle_parition_util++;
   }
-
   if (clock_mask & ICNT) {
     icnt_transfer();
   }
-
   if (clock_mask & CORE) {
     // L1 cache + shader core pipeline stages
     m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX].clear();

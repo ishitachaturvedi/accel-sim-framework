@@ -1788,7 +1788,7 @@ bool ptx_thread_info::isSyncInstNonMemory(const warp_inst_t *inst, unsigned lane
   return (inst_opcode == BAR_OP|| inst_opcode == CALL_OP || inst_opcode == CALLP_OP || inst_opcode == EXIT_OP	
         || inst_opcode == RET_OP || inst_opcode == RETP_OP || inst_opcode == TRAP_OP ||inst_opcode == VOTE_OP	
         || inst_opcode == ACTIVEMASK_OP || inst_opcode == BREAK_OP || inst_opcode == BREAKADDR_OP	
-        || inst_opcode == EXIT_OPS || inst_opcode == ATOM_OP
+        || inst_opcode == EXIT_OPS || inst_opcode == ATOM_OP || inst_opcode == BRA_OP
         );	
 }
 

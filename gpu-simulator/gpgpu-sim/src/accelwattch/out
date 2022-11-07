@@ -1,0 +1,4 @@
+mcpat.mk:105: /accelwattch/Makefile.makedepend: No such file or directory
+touch: cannot touch '/accelwattch/Makefile.makedepend': No such file or directory
+make[1]: *** [depend] Error 1
+make: *** [opt] Error 2

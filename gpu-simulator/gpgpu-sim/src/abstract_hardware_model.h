@@ -1091,6 +1091,7 @@ class warp_inst_t : public inst_t {
 
   unsigned get_cluster_id() { return m_cluster_id; }
   void set_cluster_id(int cluster_id) { m_cluster_id = cluster_id; }
+  void set_active_mask(active_mask_t active_mask) { m_warp_active_mask = active_mask; }
 
   int get_pc() { return m_pc; }
   void set_pc(int pc) { m_pc = pc; }
@@ -1165,21 +1166,10 @@ class warp_inst_t : public inst_t {
   };
 
   void generate_mem_accesses();
-  void generate_mem_accesses_collection(const active_mask_t &mask);
   void memory_coalescing_arch(bool is_write, mem_access_type access_type);
-  void memory_coalescing_arch_collection(bool is_write, mem_access_type access_type);
   void memory_coalescing_arch_atomic(bool is_write,
                                      mem_access_type access_type);
-  void memory_coalescing_arch_atomic_collection(bool is_write,
-                                     mem_access_type access_type);   
-  void memory_coalescing_arch_atomic_stats_collection(bool is_write,
-                                                mem_access_type access_type);                                
   void memory_coalescing_arch_reduce_and_send(bool is_write,
-                                              mem_access_type access_type,
-                                              const transaction_info &info,
-                                              new_addr_type addr,
-                                              unsigned segment_size);
-  void memory_coalescing_arch_reduce_and_send_collection(bool is_write,
                                               mem_access_type access_type,
                                               const transaction_info &info,
                                               new_addr_type addr,

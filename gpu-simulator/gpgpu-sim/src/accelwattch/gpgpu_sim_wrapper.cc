@@ -101,6 +101,7 @@ enum pwr_cmp_t {
 
 gpgpu_sim_wrapper::gpgpu_sim_wrapper(bool power_simulation_enabled,
                                      char* xmlfile, int power_simulation_mode, bool dvfs_enabled) {
+
   kernel_sample_count = 0;
   total_sample_count = 0;
 
@@ -301,10 +302,10 @@ void gpgpu_sim_wrapper::set_inst_power(bool clk_gated_lanes, double tot_cycles, 
       tot_inst * p->sys.scaling_coefficients[TOT_INST];
   p->sys.core[0].tot_ibuffer_used =
       tot_ibuffer_used * p->sys.scaling_coefficients[TOT_INST];
-  p->sys.core[0].tot_DEB_written =
-      tot_DEB_written * p->sys.scaling_coefficients[TOT_INST]/2;
-  p->sys.core[0].tot_DEB_used =
-      tot_DEB_used * p->sys.scaling_coefficients[TOT_INST]/2;
+  // p->sys.core[0].tot_DEB_written =
+  //     tot_DEB_written * p->sys.scaling_coefficients[TOT_INST]/2;
+  // p->sys.core[0].tot_DEB_used =
+  //     tot_DEB_used * p->sys.scaling_coefficients[TOT_INST]/2;
   p->sys.core[0].int_instructions =
       int_inst * p->sys.scaling_coefficients[FP_INT];
   p->sys.core[0].fp_instructions =
@@ -314,8 +315,6 @@ void gpgpu_sim_wrapper::set_inst_power(bool clk_gated_lanes, double tot_cycles, 
   p->sys.core[0].committed_instructions = committed_inst;
   sample_perf_counters[FP_INT] = int_inst + fp_inst;
   sample_perf_counters[TOT_INST] = tot_inst;
-  //cout <<"ORIG_NUM "<<tot_inst<<" "<<tot_ibuffer_used<<" "<<tot_DEB_used<<" "<<tot_DEB_written<<"\n";
-  //cout <<"MUL_NUM "<<p->sys.core[0].total_instructions<<" "<<p->sys.core[0].tot_ibuffer_used<<" "<<p->sys.core[0].tot_DEB_used<<" "<<p->sys.core[0].tot_DEB_written<<"\n";
 }
 
 void gpgpu_sim_wrapper::set_regfile_power(double reads, double writes,
@@ -887,11 +886,11 @@ void gpgpu_sim_wrapper::update_components_power()
           +proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic
           +proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic
           +proc->cores[0]->ifu->ID_inst->rt_power.readOp.dynamic)/(proc->cores[0]->executionTime);
-  sample_cmp_pwr[DEBP]=(proc->cores[0]->ifu->DEB->rt_power.readOp.dynamic
-          +proc->cores[0]->ifu->DEB->rt_power.writeOp.dynamic
-          +proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic
-          +proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic
-          +proc->cores[0]->ifu->ID_inst->rt_power.readOp.dynamic)/(proc->cores[0]->executionTime);
+  // sample_cmp_pwr[DEBP]=(proc->cores[0]->ifu->DEB->rt_power.readOp.dynamic
+  //         +proc->cores[0]->ifu->DEB->rt_power.writeOp.dynamic
+  //         +proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic
+  //         +proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic
+  //         +proc->cores[0]->ifu->ID_inst->rt_power.readOp.dynamic)/(proc->cores[0]->executionTime);
 
   //cout <<"IB_CALC_POWER "<<proc->cores[0]->ifu->IB->rt_power.readOp.dynamic<<" "<<proc->cores[0]->ifu->IB->rt_power.writeOp.dynamic<<" "<<
   //proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic <<" "<<proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic<<" "<<
@@ -1020,65 +1019,65 @@ void gpgpu_sim_wrapper::print_power_kernel_stats(
     const std::string& kernel_info_string, bool print_trace) {
   detect_print_steady_state(1, init_value);
   if (g_power_simulation_enabled) {
-    powerfile << kernel_info_string << std::endl;
+    std::cout << kernel_info_string << std::endl;
 
     sanity_check((kernel_power.avg * kernel_sample_count), kernel_tot_power);
 
-    powerfile << "Kernel Average Power Data:" << std::endl;
-    powerfile << "kernel_avg_power = " << kernel_power.avg << std::endl;
+    std::cout << "Kernel Average Power Data:" << std::endl;
+    std::cout << "kernel_avg_power = " << kernel_power.avg << std::endl;
 
     for (unsigned i = 0; i < num_pwr_cmps; ++i) {
-      powerfile << "gpu_avg_" << pwr_cmp_label[i] << " = "
+      std::cout << "gpu_avg_" << pwr_cmp_label[i] << " = "
                 << kernel_cmp_pwr[i].avg / kernel_sample_count << std::endl;
     }
 
     for (unsigned i = 0; i < num_perf_counters; ++i) {
-      powerfile << "gpu_avg_" << perf_count_label[i] << " = "
+      std::cout << "gpu_avg_" << perf_count_label[i] << " = "
                 << kernel_cmp_perf_counters[i].avg / kernel_sample_count
                 << std::endl;
     }
 
-    powerfile << "gpu_avg_threads_per_warp = "
+    std::cout << "gpu_avg_threads_per_warp = "
                 << avg_threads_per_warp_tot / (double)kernel_sample_count
                 << std::endl;
 
     for (unsigned i = 0; i < num_perf_counters; ++i) {
-      powerfile << "gpu_tot_" << perf_count_label[i] << " = "
+      std::cout << "gpu_tot_" << perf_count_label[i] << " = "
                 << kernel_cmp_perf_counters[i].avg
                 << std::endl;
     }
 
-    powerfile << std::endl << "Kernel Maximum Power Data:" << std::endl;
-    powerfile << "kernel_max_power = " << kernel_power.max << std::endl;
+    std::cout << std::endl << "Kernel Maximum Power Data:" << std::endl;
+    std::cout << "kernel_max_power = " << kernel_power.max << std::endl;
     for (unsigned i = 0; i < num_pwr_cmps; ++i) {
-      powerfile << "gpu_max_" << pwr_cmp_label[i] << " = "
+      std::cout << "gpu_max_" << pwr_cmp_label[i] << " = "
                 << kernel_cmp_pwr[i].max << std::endl;
     }
     for (unsigned i = 0; i < num_perf_counters; ++i) {
-      powerfile << "gpu_max_" << perf_count_label[i] << " = "
+      std::cout << "gpu_max_" << perf_count_label[i] << " = "
                 << kernel_cmp_perf_counters[i].max << std::endl;
     }
 
-    powerfile << std::endl << "Kernel Minimum Power Data:" << std::endl;
-    powerfile << "kernel_min_power = " << kernel_power.min << std::endl;
+    std::cout << std::endl << "Kernel Minimum Power Data:" << std::endl;
+    std::cout << "kernel_min_power = " << kernel_power.min << std::endl;
     for (unsigned i = 0; i < num_pwr_cmps; ++i) {
-      powerfile << "gpu_min_" << pwr_cmp_label[i] << " = "
+      std::cout << "gpu_min_" << pwr_cmp_label[i] << " = "
                 << kernel_cmp_pwr[i].min << std::endl;
     }
     for (unsigned i = 0; i < num_perf_counters; ++i) {
-      powerfile << "gpu_min_" << perf_count_label[i] << " = "
+      std::cout << "gpu_min_" << perf_count_label[i] << " = "
                 << kernel_cmp_perf_counters[i].min << std::endl;
     }
 
-    powerfile << std::endl
+    std::cout << std::endl
               << "Accumulative Power Statistics Over Previous Kernels:"
               << std::endl;
-    powerfile << "gpu_tot_avg_power = "
+    std::cout << "gpu_tot_avg_power = "
               << gpu_tot_power.avg / total_sample_count << std::endl;
-    powerfile << "gpu_tot_max_power = " << gpu_tot_power.max << std::endl;
-    powerfile << "gpu_tot_min_power = " << gpu_tot_power.min << std::endl;
-    powerfile << std::endl << std::endl;
-    powerfile.flush();
+    std::cout << "gpu_tot_max_power = " << gpu_tot_power.max << std::endl;
+    std::cout << "gpu_tot_min_power = " << gpu_tot_power.min << std::endl;
+    std::cout << std::endl << std::endl<<std::flush;
+    //std::cout.flush();
 
     if (print_trace) {
       print_trace_files();

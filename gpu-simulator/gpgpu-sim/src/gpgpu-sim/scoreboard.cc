@@ -245,13 +245,28 @@ bool Scoreboard::checkCollision(unsigned wid, const class inst_t* inst, bool pri
   std::set<int>::iterator it2;
   std::set<unsigned>::const_iterator it;
 
-  if(wid == 0)
   for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
   {
-    if (reg_table[wid].find(*it2) == reg_table[wid].end() && longopregs_hold[wid].find(*it2) != longopregs_hold[wid].end()) {
-      std::cout <<"HUGE_POBLEM_HERE "<<wid<<" "<<inst->pc<<"\n";
+    if (reg_table[wid].find(*it2) != reg_table[wid].end()) {
+      return true;
     }
   }
+
+  return false;
+}
+
+bool Scoreboard::check_for_WAW_deps(unsigned wid, const class inst_t* inst) const {
+  std::set<int> inst_regs;
+
+  for (unsigned iii = 0; iii < inst->outcount; iii++)
+  {
+    inst_regs.insert(inst->out[iii]);
+  }
+
+  // Check for collision, get the intersection of reserved registers and
+  // instruction registers
+  std::set<int>::iterator it2;
+  std::set<unsigned>::const_iterator it;
 
   for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
   {
@@ -261,6 +276,64 @@ bool Scoreboard::checkCollision(unsigned wid, const class inst_t* inst, bool pri
   }
 
   return false;
+}
+
+bool Scoreboard::check_WAR_or_WAW_replay(unsigned wid, const class inst_t* inst, std::vector<const warp_inst_t *> replayInst) const {
+  std::set<int> inst_regs;
+  std::set<int> inst_regs1;
+  std::set<int> inst_replay_regs;
+  bool WAR_WAW_found  = false;
+  bool RAW_found = false;
+
+  for (unsigned iii = 0; iii < inst->outcount; iii++)
+    inst_regs.insert(inst->out[iii]);
+
+  // for (unsigned jjj = 0; jjj < inst->incount; jjj++)
+  //   inst_regs.insert(inst->in[jjj]);
+
+  // if (inst->pred > 0) inst_regs.insert(inst->pred);
+  // if (inst->ar1 > 0) inst_regs.insert(inst->ar1);
+  // if (inst->ar2 > 0) inst_regs.insert(inst->ar2);
+
+  // make list of all regs in replay list
+  for(const class inst_t* ins : replayInst)
+  {
+    for (unsigned iii = 0; iii < ins->outcount; iii++)
+    {
+      inst_replay_regs.insert(ins->out[iii]);
+    }
+
+
+    for (unsigned jjj = 0; jjj < ins->incount; jjj++)
+      inst_replay_regs.insert(ins->in[jjj]);
+  }
+
+  // check for collision against replay queue instructions
+  std::set<int>::const_iterator it2;
+  for (it2 = inst_regs.begin(); it2 != inst_regs.end(); it2++)
+  {
+    if (inst_replay_regs.find(*it2) != inst_replay_regs.end()) {
+      WAR_WAW_found = true;
+      break;
+    }
+  }
+  
+  for (unsigned jjj = 0; jjj < inst->incount; jjj++)
+    inst_regs1.insert(inst->in[jjj]);
+
+  if (inst->pred > 0) inst_regs1.insert(inst->pred);
+  if (inst->ar1 > 0) inst_regs1.insert(inst->ar1);
+  if (inst->ar2 > 0) inst_regs1.insert(inst->ar2);
+  for (it2 = inst_regs1.begin(); it2 != inst_regs1.end(); it2++)
+  {
+    if (inst_replay_regs.find(*it2) != inst_replay_regs.end()) {
+      RAW_found = true;
+      break;
+    }
+  }
+
+  return (!RAW_found && WAR_WAW_found);
+
 }
 
 void Scoreboard::collisionInstPC(unsigned wid, const inst_t* inst, bool print, int pc, int m_cluster_id, int sid, std::vector<const warp_inst_t *> replayInst) {

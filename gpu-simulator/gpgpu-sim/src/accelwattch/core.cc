@@ -282,6 +282,8 @@ InstFetchU::InstFetchU(ParseXML* XML_interface, int ithCore_,
   area.set_area(area.get_area() + icache.prefetchb->local_result.area);
   // output_data_csv(icache.prefetchb.local_result);
 
+  cout <<"ICACHE_AREA "<<icache.area.get_area()<<"\n";
+
   // Instruction buffer
   data =
       XML->sys.core[ithCore].instruction_length *
@@ -326,49 +328,51 @@ InstFetchU::InstFetchU(ParseXML* XML_interface, int ithCore_,
   IB->area.set_area(IB->area.get_area() + IB->local_result.area);
   area.set_area(area.get_area() + IB->local_result.area);
 
+  cout <<"IBUFFER_AREA "<<IB->area.get_area()<<"\n";
+
   // Defered Execution Buffer buffer
-  data =
-      XML->sys.core[ithCore].instruction_length *
-      XML->sys.core[ithCore]
-          .peak_issue_width;  // icache.caches.l_ip.line_sz; //multiple threads
-                              // timing sharing the instruction buffer.
-  interface_ip.is_cache = false;
-  interface_ip.pure_ram = true;
-  interface_ip.pure_cam = false;
-  interface_ip.line_sz = int(ceil(data / 8.0));
-  interface_ip.cache_sz =
-      XML->sys.core[ithCore].number_hardware_threads *
-                  XML->sys.core[ithCore].instruction_buffer_size *
-                  interface_ip.line_sz >
-              64
-          ? XML->sys.core[ithCore].number_hardware_threads *
-                XML->sys.core[ithCore].instruction_buffer_size *
-                interface_ip.line_sz
-          : 64;
-  interface_ip.assoc = 1;
-  interface_ip.nbanks = 1;
-  interface_ip.out_w = interface_ip.line_sz * 8;
-  interface_ip.access_mode = 0;
-  interface_ip.throughput = 1.0 / clockRate;
-  interface_ip.latency = 1.0 / clockRate;
-  interface_ip.obj_func_dyn_energy = 0;
-  interface_ip.obj_func_dyn_power = 0;
-  interface_ip.obj_func_leak_power = 0;
-  interface_ip.obj_func_cycle_t = 1;
-  // NOTE: Assuming DEB is time slice shared among threads, every fetch op will
-  // at least fetch "fetch width" instructions.
-  interface_ip.num_rw_ports =
-      debug
-          ? 1
-          : XML->sys.core[ithCore]
-                .number_instruction_fetch_ports;  // XML->sys.core[ithCore].fetch_width;
-  interface_ip.num_rd_ports = 0;
-  interface_ip.num_wr_ports = 0;
-  interface_ip.num_se_rd_ports = 0;
-  DEB = new ArrayST(&interface_ip, "DeferedExecBuffer", Core_device, coredynp.opt_local,
-                   coredynp.core_ty);
-  DEB->area.set_area(DEB->area.get_area() + DEB->local_result.area);
-  area.set_area(area.get_area() + DEB->local_result.area);
+  // data =
+  //     XML->sys.core[ithCore].instruction_length *
+  //     XML->sys.core[ithCore]
+  //         .peak_issue_width;  // icache.caches.l_ip.line_sz; //multiple threads
+  //                             // timing sharing the instruction buffer.
+  // interface_ip.is_cache = false;
+  // interface_ip.pure_ram = true;
+  // interface_ip.pure_cam = false;
+  // interface_ip.line_sz = int(ceil(data / 8.0));
+  // interface_ip.cache_sz =
+  //     XML->sys.core[ithCore].number_hardware_threads *
+  //                 XML->sys.core[ithCore].instruction_buffer_size *
+  //                 interface_ip.line_sz >
+  //             64
+  //         ? XML->sys.core[ithCore].number_hardware_threads *
+  //               XML->sys.core[ithCore].instruction_buffer_size *
+  //               interface_ip.line_sz
+  //         : 64;
+  // interface_ip.assoc = 1;
+  // interface_ip.nbanks = 1;
+  // interface_ip.out_w = interface_ip.line_sz * 8;
+  // interface_ip.access_mode = 0;
+  // interface_ip.throughput = 1.0 / clockRate;
+  // interface_ip.latency = 1.0 / clockRate;
+  // interface_ip.obj_func_dyn_energy = 0;
+  // interface_ip.obj_func_dyn_power = 0;
+  // interface_ip.obj_func_leak_power = 0;
+  // interface_ip.obj_func_cycle_t = 1;
+  // // NOTE: Assuming DEB is time slice shared among threads, every fetch op will
+  // // at least fetch "fetch width" instructions.
+  // interface_ip.num_rw_ports =
+  //     debug
+  //         ? 1
+  //         : XML->sys.core[ithCore]
+  //               .number_instruction_fetch_ports;  // XML->sys.core[ithCore].fetch_width;
+  // interface_ip.num_rd_ports = 0;
+  // interface_ip.num_wr_ports = 0;
+  // interface_ip.num_se_rd_ports = 0;
+  // DEB = new ArrayST(&interface_ip, "DeferedExecBuffer", Core_device, coredynp.opt_local,
+  //                  coredynp.core_ty);
+  // DEB->area.set_area(DEB->area.get_area() + DEB->local_result.area);
+  // area.set_area(area.get_area() + DEB->local_result.area);
 
   // output_data_csv(DEB.DEB.local_result);
 
@@ -457,7 +461,10 @@ InstFetchU::InstFetchU(ParseXML* XML_interface, int ithCore_,
                 (ID_inst->area.get_area() + ID_operand->area.get_area() +
                  ID_misc->area.get_area()) *
                     coredynp.decodeW);
-  cout <<"InstFetchU AREA1: "<< area.get_area()<<std::endl;
+
+  cout <<"DECODER_AREA "<<(ID_inst->area.get_area() + ID_operand->area.get_area() +
+                 ID_misc->area.get_area()) *
+                    coredynp.decodeW<<"\n";
 }
 
 BranchPredictor::BranchPredictor(ParseXML* XML_interface, int ithCore_,
@@ -627,7 +634,6 @@ BranchPredictor::BranchPredictor(ParseXML* XML_interface, int ithCore_,
                      RAS->local_result.area * coredynp.num_hthreads);
   area.set_area(area.get_area() +
                 RAS->local_result.area * coredynp.num_hthreads);
-  cout <<"BranchPredictor AREA2: "<< area.get_area()<<std::endl;
 }
 
 SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
@@ -692,7 +698,6 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
                                        coredynp.num_pipelines);
     area.set_area(area.get_area() +
                   int_inst_window->local_result.area * coredynp.num_pipelines);
-    cout <<"TOTAL AREA3A: "<< area.get_area()<<std::endl;
     // output_data_csv(iRS.RS.local_result);
     Iw_height = int_inst_window->local_result.cache_ht;
 
@@ -732,9 +737,6 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
     interface_ip.num_se_rd_ports = 0;
     interface_ip.num_search_ports = coredynp.peak_issueW;
 
-    cout <<"XML->sys.core[ithCore].instruction_window_size "<<XML->sys.core[ithCore].instruction_window_size<<"\n";
-    cout <<"interface_ip.num_rd_ports "<<interface_ip.num_rd_ports<<"\n";
-    cout <<"interface_ip.line_sz "<<interface_ip.line_sz<<"\n";
     // int_inst_window = new ArrayST(&interface_ip, "InstFetchQueue_TEST", Core_device,
     //                               coredynp.opt_local, coredynp.core_ty);
     // int_inst_window->area.set_area(int_inst_window->area.get_area() +
@@ -742,7 +744,6 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
     //                                    coredynp.num_pipelines);
     // area.set_area(area.get_area() +
     //               int_inst_window->local_result.area * coredynp.num_pipelines);
-    cout <<"TOTAL AREA TEST: "<< (int_inst_window->area.get_area() + int_inst_window->local_result.area * coredynp.num_pipelines) <<std::endl;
 
     /*
      * selection logic
@@ -753,10 +754,14 @@ SchedulerU::SchedulerU(ParseXML* XML_interface, int ithCore_,
      * belongs to who at the issue stage.
      */
 
+     cout <<"SCHEDU_AREA "<<int_inst_window->area.get_area()<<"\n";
+
     instruction_selection = new selection_logic(
         is_default, XML->sys.core[ithCore].instruction_window_size,
         coredynp.peak_issueW * XML->sys.core[ithCore].number_hardware_threads,
         &interface_ip, Core_device, coredynp.core_ty);
+
+    
   }
 
   if (coredynp.core_ty == OOO) {
@@ -1838,7 +1843,7 @@ LoadStoreU::LoadStoreU(ParseXML* XML_interface, int ithCore_,
         (LSQ->local_result.cache_ht + LoadQ->local_result.cache_ht) *
         sqrt(cdb_overhead); /*XML->sys.core[ithCore].number_hardware_threads*/
   }
-  cout <<"LoadStoreU AREA5: "<< area.get_area()<<std::endl;
+  cout <<"LOADSTORE_AREA "<<LSQ->area.get_area()<<"\n";
 }
 
 MemManU::MemManU(ParseXML* XML_interface, int ithCore_,
@@ -1939,8 +1944,9 @@ MemManU::MemManU(ParseXML* XML_interface, int ithCore_,
                      coredynp.core_ty);
   dtlb->area.set_area(dtlb->area.get_area() + dtlb->local_result.area);
   area.set_area(area.get_area() + dtlb->local_result.area);
-  cout <<"MemManU6: "<< area.get_area()<<std::endl;
   // output_data_csv(dtlb.tlb.local_result);
+
+  cout <<"MemManu_AREA "<<dtlb->area.get_area()<<"\n";
 }
 //#define FERMI
 
@@ -2037,6 +2043,7 @@ RegFU::RegFU(ParseXML* XML_interface, int ithCore_,
   IRF->area.set_area(IRF->area.get_area() + IRF->local_result.area *
                                                 coredynp.num_pipelines *
                                                 cdb_overhead);
+  cout <<"IntReg_AREA "<<IRF->area.get_area()<<"\n";
 
   area.set_area(area.get_area() + IRF->local_result.area +
                 xbar_rfu->area.get_area() + arbiter_rfu->area.get_area());
@@ -2098,6 +2105,8 @@ RegFU::RegFU(ParseXML* XML_interface, int ithCore_,
   OPC->area.set_area(OPC->area.get_area() + OPC->local_result.area *
                                                 coredynp.num_pipelines *
                                                 cdb_overhead);
+
+  cout <<"OperandCollector_AREA "<<OPC->area.get_area()<<"\n";
 
   area.set_area(area.get_area() + OPC->local_result.area);
 
@@ -2184,8 +2193,11 @@ RegFU::RegFU(ParseXML* XML_interface, int ithCore_,
     area.set_area(area.get_area() +
                   RFWIN->local_result.area * coredynp.num_pipelines);
     // output_data_csv(RFWIN.RF.local_result);
+    cout <<"RegWindow_AREA "<<RFWIN->area.get_area()<<"\n";
   }
-  cout <<"RegFU AREA7: "<< area.get_area()<<std::endl;
+  // cout <<"IntReg_AREA "<<IRF->area.get_area()<<"\n";
+  // cout <<"OperandCollector_AREA "<<OPC->area.get_area()<<"\n";
+  // cout <<"RegWindow_AREA "<<RFWIN->area.get_area()<<"\n";
 }
 
 EXECU::EXECU(ParseXML* XML_interface, int ithCore_,
@@ -2232,6 +2244,10 @@ EXECU::EXECU(ParseXML* XML_interface, int ithCore_,
     area.set_area(area.get_area() + mul->area.get_area());
     fu_height += mul->FU_height;
   }
+
+  cout <<"Exec_AREA: "<< (exeu->area.get_area() + rfu->area.get_area() +
+                scheu->area.get_area() + fp_u->area.get_area() + mul->area.get_area())<<std::endl;
+
   /*
    * broadcast logic, including int-broadcast; int_tag-broadcast; fp-broadcast;
    * fp_tag-broadcast integer by pass has two paths and fp has 3 paths. on the
@@ -2414,7 +2430,6 @@ EXECU::EXECU(ParseXML* XML_interface, int ithCore_,
 
   } /* else */
   area.set_area(area.get_area() /*+ bypass.area.get_area()*/);
-  cout <<"EXECU AREA8: "<< area.get_area()<<std::endl;
 }
 
 RENAMINGU::RENAMINGU(ParseXML* XML_interface, int ithCore_,
@@ -3015,10 +3030,14 @@ Core::Core(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_)
 
   executionTime = coredynp.executionTime;
   ifu = new InstFetchU(XML, ithCore, &interface_ip, coredynp);
+  
   lsu = new LoadStoreU(XML, ithCore, &interface_ip, coredynp);
+  
   mmu = new MemManU(XML, ithCore, &interface_ip, coredynp);
+  
   exu = new EXECU(XML, ithCore, &interface_ip, lsu->lsq_height, coredynp,
                   exClockRate, true);
+  
 
   undiffCore = new UndiffCore(XML, ithCore, &interface_ip, coredynp);
   if (coredynp.core_ty == OOO) {
@@ -3042,18 +3061,22 @@ Core::Core(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_)
     ifu->area.set_area(ifu->area.get_area() + pipeline_area_per_unit);
     area.set_area(area.get_area() + ifu->area.get_area());
   }
+  cout <<"ifu AREA "<<ifu->area.get_area()<<"\n";
   if (lsu->exist) {
     lsu->area.set_area(lsu->area.get_area() + pipeline_area_per_unit);
     area.set_area(area.get_area() + lsu->area.get_area());
   }
+  cout <<"lsu AREA "<<lsu->area.get_area()<<"\n";
   if (exu->exist) {
     exu->area.set_area(exu->area.get_area() + pipeline_area_per_unit);
     area.set_area(area.get_area() + exu->area.get_area());
   }
+  cout <<"exu AREA "<<exu->area.get_area()<<"\n";
   if (mmu->exist) {
     mmu->area.set_area(mmu->area.get_area() + pipeline_area_per_unit);
     area.set_area(area.get_area() + mmu->area.get_area());
   }
+  cout <<"mmu AREA "<<mmu->area.get_area()<<"\n";
 
   if (coredynp.core_ty == OOO) {
     if (rnu->exist) {
@@ -3067,6 +3090,7 @@ Core::Core(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_)
 
   if (XML->sys.Private_L2) {
     area.set_area(area.get_area() + l2cache->area.get_area());
+    cout <<"Provate L2 "<<l2cache->area.get_area()<<"\n";
   }
   //  //clock power
   //  clockNetwork.init_wire_external(is_default, &interface_ip);
@@ -3075,7 +3099,7 @@ Core::Core(ParseXML* XML_interface, int ithCore_, InputParameter* interface_ip_)
   //  clockNetwork.start_wiring_level =5;//toplevel metal
   //  clockNetwork.num_regs           = corepipe.tot_stage_vector;
   //  clockNetwork.optimize_wire();
-  cout <<"Core AREA10: "<< area.get_area()<<std::endl;
+  cout <<"TOTAL AREA "<<area.get_area()<<"\n";
 }
 
 void BranchPredictor::computeEnergy(bool is_tdp) {
@@ -3358,9 +3382,9 @@ void InstFetchU::computeEnergy(bool is_tdp) {
         XML->sys.core[ithCore].peak_issue_width;
     IB->tdp_stats = IB->stats_t;
 
-    DEB->stats_t.readAc.access = DEB->stats_t.writeAc.access =
-        XML->sys.core[ithCore].peak_issue_width;
-    DEB->tdp_stats = DEB->stats_t;
+    // DEB->stats_t.readAc.access = DEB->stats_t.writeAc.access =
+    //     XML->sys.core[ithCore].peak_issue_width;
+    // DEB->tdp_stats = DEB->stats_t;
 
     if (coredynp.predictionW > 0) {
       BTB->stats_t.readAc.access =
@@ -3419,9 +3443,9 @@ void InstFetchU::computeEnergy(bool is_tdp) {
 
     // DEB->stats_t.readAc.access = DEB->stats_t.writeAc.access =
     //     XML->sys.core[ithCore].total_instructions;
-    DEB->stats_t.readAc.access = XML->sys.core[ithCore].tot_DEB_used;
-    DEB->stats_t.writeAc.access = XML->sys.core[ithCore].tot_DEB_written;
-    DEB->rtp_stats = DEB->stats_t;
+    // DEB->stats_t.readAc.access = XML->sys.core[ithCore].tot_DEB_used;
+    // DEB->stats_t.writeAc.access = XML->sys.core[ithCore].tot_DEB_written;
+    // DEB->rtp_stats = DEB->stats_t;
     // cout<<"IB: total instructions: "<<IB->stats_t.readAc.access <<endl;
     if (coredynp.predictionW > 0) {
       BTB->stats_t.readAc.access =
@@ -3447,7 +3471,7 @@ void InstFetchU::computeEnergy(bool is_tdp) {
 
   icache.power_t.reset();
   IB->power_t.reset();
-  DEB->power_t.reset();
+  //DEB->power_t.reset();
   //	ID_inst->power_t.reset();
   //	ID_operand->power_t.reset();
   //	ID_misc->power_t.reset();
@@ -3487,9 +3511,9 @@ void InstFetchU::computeEnergy(bool is_tdp) {
       IB->stats_t.writeAc.access * IB->local_result.power.writeOp.dynamic;
   //cout <<"IB_POWER "<<IB->local_result.power.readOp.dynamic<<" "<<IB->stats_t.readAc.access<<" "<<IB->stats_t.writeAc.access<<" "<<IB->local_result.power.writeOp.dynamic<<"\n";
 
-  DEB->power_t.readOp.dynamic +=
-      DEB->local_result.power.readOp.dynamic * DEB->stats_t.readAc.access +
-      DEB->stats_t.writeAc.access * DEB->local_result.power.writeOp.dynamic;
+  // DEB->power_t.readOp.dynamic +=
+  //     DEB->local_result.power.readOp.dynamic * DEB->stats_t.readAc.access +
+  //     DEB->stats_t.writeAc.access * DEB->local_result.power.writeOp.dynamic;
   //cout <<"DEB_POWER "<<DEB->local_result.power.readOp.dynamic<<" "<<DEB->stats_t.readAc.access<<" "<<DEB->stats_t.writeAc.access<<" "<<DEB->local_result.power.writeOp.dynamic<<"\n";
   // cout << "IB power: "<<IB->power_t.readOp.dynamic<<endl;
   if (coredynp.predictionW > 0) {
@@ -3515,8 +3539,8 @@ void InstFetchU::computeEnergy(bool is_tdp) {
     IB->power = IB->power_t + IB->local_result.power * pppm_lkg;
     power = power + icache.power + IB->power;
 
-    DEB->power = DEB->power_t + DEB->local_result.power * pppm_lkg;
-    power = power + icache.power + DEB->power;
+    // DEB->power = DEB->power_t + DEB->local_result.power * pppm_lkg;
+    // power = power + icache.power + DEB->power;
     if (coredynp.predictionW > 0) {
       BTB->power = BTB->power_t + BTB->local_result.power * pppm_lkg;
       power = power + BTB->power + BPT->power;
@@ -3554,12 +3578,12 @@ void InstFetchU::computeEnergy(bool is_tdp) {
 
     //cout <<"IB_RT_POWER "<<IB->local_result.power.readOp.dynamic<<" "<<IB->rtp_stats.readAc.access<<" "<<IB->local_result.power.writeOp.dynamic<<" "<<IB->rtp_stats.writeAc.access<<"\n";
 
-    DEB->rt_power.readOp.dynamic =
-        DEB->local_result.power.readOp.dynamic * DEB->rtp_stats.readAc.access;
-    DEB->rt_power.readOp.dynamic +=
-        DEB->local_result.power.writeOp.dynamic * DEB->rtp_stats.writeAc.access;
+    // DEB->rt_power.readOp.dynamic =
+    //     DEB->local_result.power.readOp.dynamic * DEB->rtp_stats.readAc.access;
+    // DEB->rt_power.readOp.dynamic +=
+    //     DEB->local_result.power.writeOp.dynamic * DEB->rtp_stats.writeAc.access;
     //cout <<"DEB_RT_POWER "<<DEB->local_result.power.readOp.dynamic<<" "<<DEB->rtp_stats.readAc.access<<" "<<DEB->local_result.power.writeOp.dynamic<<" "<<DEB->rtp_stats.writeAc.access<<"\n";
-    rt_power = rt_power + icache.rt_power + DEB->rt_power;
+    //rt_power = rt_power + icache.rt_power + DEB->rt_power;
 
     if (coredynp.predictionW > 0) {
       BTB->rt_power = BTB->power_t + BTB->local_result.power * pppm_lkg;
@@ -3660,22 +3684,22 @@ void InstFetchU::displayEnergy(uint32_t indent, int plevel, bool is_tdp) {
          << " W" << endl;
     cout << endl;
 
-    cout << indent_str << "Defered Execution Buffer Buffer:" << endl;
-    cout << indent_str_next << "Area = " << DEB->area.get_area() * 1e-6
-         << " mm^2" << endl;
-    cout << indent_str_next
-         << "Peak Dynamic = " << DEB->power.readOp.dynamic * clockRate << " W"
-         << endl;
-    cout << indent_str_next << "Subthreshold Leakage = "
-         << (long_channel ? DEB->power.readOp.longer_channel_leakage
-                          : DEB->power.readOp.leakage)
-         << " W" << endl;
-    cout << indent_str_next
-         << "Gate Leakage = " << DEB->power.readOp.gate_leakage << " W" << endl;
-    cout << indent_str_next
-         << "Runtime Dynamic = " << DEB->rt_power.readOp.dynamic / executionTime
-         << " W" << endl;
-    cout << endl;
+    // cout << indent_str << "Defered Execution Buffer Buffer:" << endl;
+    // cout << indent_str_next << "Area = " << DEB->area.get_area() * 1e-6
+    //      << " mm^2" << endl;
+    // cout << indent_str_next
+    //      << "Peak Dynamic = " << DEB->power.readOp.dynamic * clockRate << " W"
+    //      << endl;
+    // cout << indent_str_next << "Subthreshold Leakage = "
+    //      << (long_channel ? DEB->power.readOp.longer_channel_leakage
+    //                       : DEB->power.readOp.leakage)
+    //      << " W" << endl;
+    // cout << indent_str_next
+    //      << "Gate Leakage = " << DEB->power.readOp.gate_leakage << " W" << endl;
+    // cout << indent_str_next
+    //      << "Runtime Dynamic = " << DEB->rt_power.readOp.dynamic / executionTime
+    //      << " W" << endl;
+    // cout << endl;
 
     cout << indent_str << "Instruction Decoder:" << endl;
     cout << indent_str_next << "Area = "

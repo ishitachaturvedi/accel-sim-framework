@@ -236,6 +236,7 @@ class power_stat_t {
                     (pwr_core_stat->m_num_tried_to_issue_insn[PREV_STAT_IDX][i]);
       }
     }
+    std::cout <<"TOT_INST_TRIED_ISSUED "<<total_inst_tried_issue<<"\n";
     return total_inst_tried_issue;
   }
   double get_total_DEB_accessed(bool aggregate_stat) {
